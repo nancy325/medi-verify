@@ -25,15 +25,14 @@ const MAX_SPINNER_MS = 5_000;
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="w-full">
+      <!-- Upload Card -->
       <div
-        class="rounded-xl border-2 border-dashed bg-white p-6 shadow-lg transition-colors"
-        [ngClass]="{
-          'border-blue-500 bg-blue-50/50': isDragActive,
-          'border-slate-300 hover:border-blue-500': !isDragActive
-        }"
+        class="upload-card glass-card card-3d"
+        [class.drag-active]="isDragActive"
         (dragover)="onDragOver($event)"
         (dragleave)="onDragLeave($event)"
         (drop)="onDrop($event)"
+        style="animation: slideInUp 0.5s ease-out both;"
       >
         <input
           #fileInput
@@ -43,36 +42,42 @@ const MAX_SPINNER_MS = 5_000;
           (change)="onFileSelected($event)"
         />
 
-        <div class="flex flex-col items-center justify-center gap-4 text-center">
-          <div class="flex h-14 w-14 items-center justify-center rounded-full bg-blue-100 text-blue-700">
-            <span class="text-2xl font-bold">↑</span>
+        <div class="upload-content">
+          <!-- Upload Icon -->
+          <div class="upload-icon-wrapper">
+            <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            <div class="upload-icon-ring"></div>
+            <div class="upload-icon-ring ring-2"></div>
           </div>
 
-          <div class="space-y-1">
-            <p class="text-lg font-semibold text-slate-900">
-              Upload medicine strip photo
-            </p>
-            <p class="text-sm text-slate-600">
-              Drag and drop or choose a file (PNG/JPG/WebP, up to 10MB)
+          <div class="upload-text">
+            <h3 class="upload-title">Upload Medicine Strip</h3>
+            <p class="upload-subtitle">
+              Drag & drop or choose a file — PNG, JPG, WebP up to 10 MB
             </p>
           </div>
 
-          <div class="flex flex-col gap-3 sm:flex-row">
+          <div class="upload-actions">
             <button
               type="button"
-              class="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow
-                transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="btn-primary"
               (click)="openFilePicker()"
               [disabled]="isLoading"
             >
-              Choose image
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              Choose Image
             </button>
-
             <button
               type="button"
-              class="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm
-                font-semibold text-slate-700 shadow-sm transition hover:border-blue-500
-                focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="btn-secondary"
               (click)="reset()"
               [disabled]="isLoading"
             >
@@ -80,39 +85,292 @@ const MAX_SPINNER_MS = 5_000;
             </button>
           </div>
 
-          <div *ngIf="previewSrc" class="w-full max-w-md">
+          <!-- Preview -->
+          <div *ngIf="previewSrc" class="preview-container">
             <img
               [src]="previewSrc"
               loading="lazy"
               alt="Uploaded medicine strip preview"
-              class="mt-2 w-full rounded-lg border border-slate-200 shadow-sm"
+              class="preview-image"
             />
           </div>
         </div>
       </div>
 
-      <div *ngIf="isLoading" class="mt-4 rounded-xl bg-white p-6 shadow-lg">
-        <div class="flex items-center gap-4">
-          <div
-            class="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600"
-            aria-label="Loading"
-          ></div>
-          <div class="space-y-1">
-            <p class="font-semibold text-slate-900">Analyzing image…</p>
-            <p class="text-sm text-slate-600">This typically takes a few seconds.</p>
+      <!-- AI Analyzing Animation -->
+      <div *ngIf="isLoading" class="loading-card glass-card" style="animation: slideInUp 0.4s ease-out both;">
+        <div class="loading-content">
+          <div class="ai-scanner">
+            <div class="scanner-ring ring-outer"></div>
+            <div class="scanner-ring ring-middle"></div>
+            <div class="scanner-ring ring-inner"></div>
+            <div class="scanner-core">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M12 2a4 4 0 0 1 4 4v1a1 1 0 0 0 1 1h1a4 4 0 0 1 0 8h-1a1 1 0 0 0-1 1v1a4 4 0 0 1-8 0v-1a1 1 0 0 0-1-1H6a4 4 0 0 1 0-8h1a1 1 0 0 0 1-1V6a4 4 0 0 1 4-4z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </div>
+          </div>
+          <div class="loading-text">
+            <h4>AI is analyzing your image…</h4>
+            <p>Running BLIP-2 vision model • Checking authenticity markers</p>
+            <div class="loading-bar">
+              <div class="loading-bar-fill"></div>
+            </div>
           </div>
         </div>
       </div>
 
+      <!-- Error -->
       <div
         *ngIf="errorMessage"
-        class="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+        class="error-card glass-card"
         role="alert"
+        style="animation: slideInUp 0.4s ease-out both;"
       >
-        {{ errorMessage }}
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 8v4M12 16h.01"/>
+        </svg>
+        <span>{{ errorMessage }}</span>
       </div>
     </section>
-  `
+  `,
+  styles: [`
+    :host { display: block; }
+
+    .upload-card {
+      padding: 2rem;
+      transition: border-color 0.3s ease, transform 0.3s ease;
+    }
+    .upload-card.drag-active {
+      border-color: var(--accent-blue) !important;
+      box-shadow: 0 0 30px rgba(99, 102, 241, 0.3);
+    }
+
+    .upload-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.25rem;
+      text-align: center;
+    }
+
+    .upload-icon-wrapper {
+      position: relative;
+      width: 72px;
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .upload-icon {
+      width: 32px;
+      height: 32px;
+      color: var(--accent-blue);
+      z-index: 2;
+      position: relative;
+    }
+    .upload-icon-ring {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      border: 2px solid rgba(99, 102, 241, 0.2);
+      animation: pulse-ring 2.5s ease-out infinite;
+    }
+    .upload-icon-ring.ring-2 {
+      animation-delay: 1.25s;
+    }
+    @keyframes pulse-ring {
+      0%   { transform: scale(0.8); opacity: 0.8; }
+      100% { transform: scale(1.6); opacity: 0; }
+    }
+
+    .upload-title {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .upload-subtitle {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin-top: 0.25rem;
+    }
+
+    .upload-actions {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0.75rem 1.5rem;
+      border-radius: 12px;
+      border: none;
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+      color: white;
+      font-weight: 600;
+      font-size: 0.875rem;
+      font-family: var(--font-body);
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+    }
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(99, 102, 241, 0.5);
+    }
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      padding: 0.75rem 1.5rem;
+      border-radius: 12px;
+      border: 1px solid var(--glass-border);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-secondary);
+      font-weight: 600;
+      font-size: 0.875rem;
+      font-family: var(--font-body);
+      cursor: pointer;
+      transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+    }
+    .btn-secondary:hover:not(:disabled) {
+      border-color: var(--accent-blue);
+      color: var(--text-primary);
+      background: rgba(99, 102, 241, 0.1);
+    }
+    .btn-secondary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .preview-container {
+      width: 100%;
+      max-width: 400px;
+    }
+    .preview-image {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    /* ─── Loading Card ─── */
+    .loading-card {
+      margin-top: 1rem;
+      padding: 1.5rem;
+    }
+    .loading-content {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .ai-scanner {
+      position: relative;
+      width: 64px;
+      height: 64px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .scanner-ring {
+      position: absolute;
+      border-radius: 50%;
+      border: 2px solid transparent;
+    }
+    .ring-outer {
+      width: 100%;
+      height: 100%;
+      border-top-color: var(--accent-blue);
+      border-right-color: var(--accent-purple);
+      animation: spin 2s linear infinite;
+    }
+    .ring-middle {
+      width: 80%;
+      height: 80%;
+      border-bottom-color: var(--accent-cyan);
+      border-left-color: var(--accent-blue);
+      animation: spin 1.5s linear infinite reverse;
+    }
+    .ring-inner {
+      width: 60%;
+      height: 60%;
+      border-top-color: var(--accent-purple);
+      animation: spin 1s linear infinite;
+    }
+    .scanner-core {
+      z-index: 2;
+      color: var(--accent-purple);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.15); opacity: 0.7; }
+    }
+
+    .loading-text h4 {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--text-primary);
+    }
+    .loading-text p {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      margin-top: 0.25rem;
+    }
+    .loading-bar {
+      margin-top: 0.75rem;
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .loading-bar-fill {
+      height: 100%;
+      width: 40%;
+      background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple), var(--accent-cyan));
+      border-radius: 2px;
+      animation: loadingSlide 2s ease-in-out infinite;
+    }
+    @keyframes loadingSlide {
+      0%   { transform: translateX(-100%); }
+      50%  { transform: translateX(200%); }
+      100% { transform: translateX(-100%); }
+    }
+
+    /* ─── Error Card ─── */
+    .error-card {
+      margin-top: 1rem;
+      padding: 1rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      border-color: rgba(248, 113, 113, 0.3) !important;
+      color: #fca5a5;
+      font-size: 0.875rem;
+    }
+
+    @media (max-width: 640px) {
+      .loading-content {
+        flex-direction: column;
+        text-align: center;
+      }
+    }
+  `]
 })
 export class ImageUploadComponent implements OnDestroy {
   @Output() resultFound = new EventEmitter<MedicineResult>();
@@ -140,7 +398,6 @@ export class ImageUploadComponent implements OnDestroy {
       this.cdr.markForCheck();
       return;
     }
-
     input.click();
   }
 
@@ -154,7 +411,6 @@ export class ImageUploadComponent implements OnDestroy {
     if (input) {
       input.value = '';
     }
-
     this.cdr.markForCheck();
   }
 
@@ -180,7 +436,6 @@ export class ImageUploadComponent implements OnDestroy {
       this.cdr.markForCheck();
       return;
     }
-
     this.processFile(file);
   }
 
@@ -193,10 +448,7 @@ export class ImageUploadComponent implements OnDestroy {
     }
 
     const file = target.files?.item(0) ?? null;
-    if (!file) {
-      return;
-    }
-
+    if (!file) { return; }
     this.processFile(file);
   }
 
@@ -232,7 +484,6 @@ export class ImageUploadComponent implements OnDestroy {
             switchMap((result: MedicineResult) => {
               const elapsedMs = Date.now() - startMs;
               const remainingMs = Math.max(0, spinnerTargetMs - elapsedMs);
-
               return timer(remainingMs).pipe(map(() => result));
             })
           )
@@ -260,39 +511,31 @@ export class ImageUploadComponent implements OnDestroy {
     if (!allowedTypes.has(file.type)) {
       return 'Unsupported file type. Please upload a PNG, JPG, or WebP image.';
     }
-
     if (file.size <= 0) {
       return 'Empty file detected. Please upload a valid image.';
     }
-
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      return 'Image is too large. Maximum size is 10MB.';
+      return 'Image is too large. Maximum size is 10 MB.';
     }
-
     return null;
   }
 
   private fileToBase64(file: File): Observable<string> {
     return new Observable<string>((subscriber) => {
       const reader = new FileReader();
-
       reader.onerror = () => {
         subscriber.error(new Error('FILE_READ_FAILED'));
       };
-
       reader.onload = () => {
         const result = reader.result;
         if (typeof result !== 'string' || !result.startsWith('data:image/')) {
           subscriber.error(new Error('INVALID_BASE64'));
           return;
         }
-
         subscriber.next(result);
         subscriber.complete();
       };
-
       reader.readAsDataURL(file);
-
       return () => {
         if (reader.readyState === FileReader.LOADING) {
           reader.abort();
@@ -307,12 +550,8 @@ export class ImageUploadComponent implements OnDestroy {
   }
 
   private revokePreviewObjectUrl(): void {
-    if (!this.previewObjectUrl) {
-      return;
-    }
-
+    if (!this.previewObjectUrl) { return; }
     URL.revokeObjectURL(this.previewObjectUrl);
     this.previewObjectUrl = null;
   }
 }
-
