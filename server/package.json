@@ -1,0 +1,16 @@
+{
+  "name": "medi-verify-backend",
+  "version": "1.0.0",
+  "description": "Medi-Verify AI Backend — BLIP-2 powered medicine authenticity verification",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1"
+  }
+}

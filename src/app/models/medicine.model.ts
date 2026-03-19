@@ -3,10 +3,17 @@ export interface RedFlag {
   confidence: number;
 }
 
+export interface AiExplanation {
+  area: string;
+  issue: string;
+  detail: string;
+}
+
 export interface MedicineResult {
   authenticity_score: number;
   red_flags: RedFlag[];
   summary: string;
+  ai_explanations?: AiExplanation[];
 }
 
 export interface SellerInfo {
@@ -16,4 +23,3 @@ export interface SellerInfo {
   trustScore: number;
   isVerified: boolean;
 }
-

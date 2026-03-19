@@ -1,27 +1,75 @@
-# MediVerify
+# 🚀 Medi-Verify AI - Intelligent Medicine Authenticity Verification
 
-This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 17.3.17.
+Medi-Verify is a state-of-the-art web application designed to combat the issue of counterfeit medicines. Built with Angular on the frontend and Node.js/Express.js on the backend, it leverages the powerful **BLIP-2 (Bootstrapping Language-Image Pre-training)** Vision-Language AI model from Hugging Face for intelligent image analysis and authenticity verification.
 
-## Development server
+## 🌟 Key Features
 
-Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The application will automatically reload if you change any of the source files.
+- **AI-Powered Medicine Verification**: Upload an image of a medicine package or bill, and our AI analyzes the packaging details, serial numbers, and text to determine authenticity.
+- **Explainable AI Insights**: The application provides an *"AI Explanation Panel"* breaking down exactly why a medicine was flagged as authentic or counterfeit, including text recognized, visual features matched, and confidence levels.
+- **Premium Glassmorphism UI**: A sleek, modern user interface built using vanilla CSS with complex glassmorphism effects, immersive background animations, and highly responsive components.
+- **Real-Time Analysis**: Integrates a seamless backend processing pipeline using Axios + Hugging Face Inference API for low-latency predictions.
 
-## Code scaffolding
+## 🛠️ Technology Stack
 
-Run `ng generate component component-name` to generate a new component. You can also use `ng generate directive|pipe|service|class|guard|interface|enum|module`.
+- **Frontend**: Angular 17+ (TypeScript, RxJS)
+- **Styling**: Vanilla CSS (CSS Variables, Flexbox/Grid, Animations)
+- **Backend API**: Node.js & Express.js
+- **Artificial Intelligence**: BLIP-2 Vision-Language Model via Hugging Face Inference API
 
-## Build
+## 🚀 Getting Started
 
-Run `ng build` to build the project. The build artifacts will be stored in the `dist/` directory.
+Follow these instructions to run the application locally.
 
-## Running unit tests
+### Prerequisites
+- Node.js (v18+)
+- Angular CLI
+- Hugging Face API Token (Free tier works perfectly)
 
-Run `ng test` to execute the unit tests via [Karma](https://karma-runner.github.io).
+### 1. Backend Setup
 
-## Running end-to-end tests
+1. Navigate to the `server` directory:
+   ```bash
+   cd server
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Create a `.env` file in the `server` directory and add your API credentials:
+   ```env
+   PORT=5000
+   HF_API_TOKEN=your_hugging_face_token_here
+   ```
+4. Start the backend server:
+   ```bash
+   npm run dev
+   ```
+   *The backend will be running at `http://localhost:5000`.*
 
-Run `ng e2e` to execute the end-to-end tests via a platform of your choice. To use this command, you need to first add a package that implements end-to-end testing capabilities.
+### 2. Frontend Setup
 
-## Further help
+1. Open a new terminal and stay in the root project directory (`medi-verify`).
+2. Install frontend dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the Angular application:
+   ```bash
+   ng serve
+   ```
+4. Open your browser and navigate to `http://localhost:4200`.
 
-To get more help on the Angular CLI use `ng help` or go check out the [Angular CLI Overview and Command Reference](https://angular.io/cli) page.
+## 🧠 How the AI Works
+
+The AI verification system utilizes the `Salesforce/blip-image-captioning-large` (or similar visual-question-answering model on HF) pipeline.
+1. The user uploads an image of a medicine on the frontend.
+2. The Angular service serializes the image as base64 and posts it to our Node backend.
+3. The Express handler translates the payload into a Hugging Face compatible prompt, asking specific visual questions (e.g., "Analyze the medicine packaging carefully. Is there a holographic seal? Is the text distorted?").
+4. The BLIP-2 model responds with a structural analysis of the text and packaging features.
+5. The backend parses this result, calculating an overall *"Authenticity Score"* and breaking down the reasoning into human-readable steps which are beautifully rendered in the Explanation Panel.
+
+## 🤝 Contributing
+Contributions are always welcome. Please make sure to follow the established code style and commit message conventions.
+
+## 📄 License
+This project is open-sourced under the [MIT License](LICENSE.md).
