@@ -38,7 +38,7 @@ Follow these instructions to run the application locally.
 3. Create a `.env` file in the `server` directory and add your API credentials:
    ```env
    PORT=5000
-   HF_API_TOKEN=your_hugging_face_token_here
+   HF_TOKEN=your_hugging_face_token_here
    ```
 4. Start the backend server:
    ```bash
@@ -59,14 +59,48 @@ Follow these instructions to run the application locally.
    ```
 4. Open your browser and navigate to `http://localhost:4200`.
 
+### 3. Quick Run Flow (Recommended)
+
+1. Start backend first (`server` folder):
+   ```bash
+   cd server
+   npm run dev
+   ```
+2. In a second terminal, start frontend (project root):
+   ```bash
+   ng serve
+   ```
+3. Upload a medicine image in the UI and view the score + red flags.
+
+## 🛟 Troubleshooting
+
+### Warning: `HF_TOKEN not set — fallback mode active`
+
+If you see this warning in backend logs, the app is running in fallback mode (mock/safe response) instead of live BLIP-2 analysis.
+
+Checklist:
+- Ensure `server/.env` exists
+- Ensure the variable name is exactly `HF_TOKEN` (not `HF_API_TOKEN`)
+- Ensure token value is not the placeholder (`your_hugging_face_token_here`)
+- Restart backend after editing `.env`
+
+Minimal `server/.env` example:
+
+```env
+PORT=5000
+HF_TOKEN=hf_your_real_token_here
+```
+
+You can also copy from `server/.env.example` and then replace the token value.
+
 ## 🧠 How the AI Works
 
-The AI verification system utilizes the `Salesforce/blip-image-captioning-large` (or similar visual-question-answering model on HF) pipeline.
+The AI verification system uses the `Salesforce/blip2-opt-2.7b` model via Hugging Face Inference API.
 1. The user uploads an image of a medicine on the frontend.
 2. The Angular service serializes the image as base64 and posts it to our Node backend.
-3. The Express handler translates the payload into a Hugging Face compatible prompt, asking specific visual questions (e.g., "Analyze the medicine packaging carefully. Is there a holographic seal? Is the text distorted?").
-4. The BLIP-2 model responds with a structural analysis of the text and packaging features.
-5. The backend parses this result, calculating an overall *"Authenticity Score"* and breaking down the reasoning into human-readable steps which are beautifully rendered in the Explanation Panel.
+3. The Express backend strips the data URI prefix, converts the payload to raw bytes, and sends it to BLIP-2 for image-to-text description generation.
+4. BLIP-2 responds with generated text describing the visible packaging/image features.
+5. The backend applies rule-based scoring on the generated description, returning an *"Authenticity Score"*, red flags, summary, and explanation cards.
 
 ## 🤝 Contributing
 Contributions are always welcome. Please make sure to follow the established code style and commit message conventions.
