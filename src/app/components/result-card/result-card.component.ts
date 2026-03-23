@@ -99,10 +99,14 @@ import { MedicineResult, RedFlag } from '../../models/medicine.model';
               </svg>
             </div>
             <div class="flag-content">
-              <p class="flag-text">{{ redFlag.flag }}</p>
+              <p class="flag-text">{{ formatRedFlagText(redFlag.flag) }}</p>
             </div>
-            <div class="flag-confidence" [style.color]="getConfidenceColor(redFlag.confidence)">
-              {{ redFlag.confidence }}%
+            <div
+              class="flag-confidence"
+              *ngIf="getConfidencePercent(redFlag.confidence) as confText"
+              [style.color]="getConfidenceColor(redFlag.confidence)"
+            >
+              {{ confText }}
             </div>
           </div>
         </div>
@@ -115,6 +119,75 @@ import { MedicineResult, RedFlag } from '../../models/medicine.model';
           <polyline points="22 4 12 14.01 9 11.01"/>
         </svg>
         <span>No red flags detected — looking good!</span>
+      </div>
+
+      <!-- OCR Evidence Panel -->
+      <div class="ocr-panel" *ngIf="result.ocr">
+        <h4 class="ocr-title">What we read from this package</h4>
+
+        <div class="ocr-grid">
+          <div class="ocr-row">
+            <span class="ocr-label">Drug Name</span>
+            <span class="ocr-value">{{ displayField(result.ocr.extracted_fields.drugName, 'Not clearly visible') }}</span>
+            <span class="ocr-state" [class.ok]="!!result.ocr.extracted_fields.drugName" [class.warn]="!result.ocr.extracted_fields.drugName">
+              {{ result.ocr.extracted_fields.drugName ? '✅' : '⚠️' }}
+            </span>
+          </div>
+
+          <div class="ocr-row">
+            <span class="ocr-label">Dosage</span>
+            <span class="ocr-value">{{ displayField(result.ocr.extracted_fields.dosage, 'Not clearly visible') }}</span>
+            <span class="ocr-state" [class.ok]="!!result.ocr.extracted_fields.dosage" [class.warn]="!result.ocr.extracted_fields.dosage">
+              {{ result.ocr.extracted_fields.dosage ? '✅' : '⚠️' }}
+            </span>
+          </div>
+
+          <div class="ocr-row">
+            <span class="ocr-label">Batch No.</span>
+            <span class="ocr-value">{{ displayField(result.ocr.extracted_fields.batchNumber, 'Not found') }}</span>
+            <span class="ocr-state" [class.ok]="!!result.ocr.extracted_fields.batchNumber" [class.warn]="!result.ocr.extracted_fields.batchNumber">
+              {{ result.ocr.extracted_fields.batchNumber ? '✅' : '⚠️' }}
+            </span>
+          </div>
+
+          <div class="ocr-row">
+            <span class="ocr-label">Expiry</span>
+            <span class="ocr-value">{{ displayField(result.ocr.extracted_fields.expiryDate, 'Not clearly visible') }}</span>
+            <span class="ocr-state" [class.ok]="!!result.ocr.extracted_fields.expiryDate" [class.warn]="!result.ocr.extracted_fields.expiryDate">
+              {{ result.ocr.extracted_fields.expiryDate ? '✅' : '⚠️' }}
+            </span>
+          </div>
+
+          <div class="ocr-row">
+            <span class="ocr-label">Rx Symbol</span>
+            <span class="ocr-value">{{ result.ocr.extracted_fields.rxSymbol ? 'Present' : 'Not detected' }}</span>
+            <span class="ocr-state" [class.ok]="result.ocr.extracted_fields.rxSymbol" [class.warn]="!result.ocr.extracted_fields.rxSymbol">
+              {{ result.ocr.extracted_fields.rxSymbol ? '✅' : '⚠️' }}
+            </span>
+          </div>
+
+          <div class="ocr-row" *ngIf="result.fda">
+            <span class="ocr-label">FDA Match</span>
+            <span class="ocr-value">
+              {{ result.fda.matched ? 'Matched in openFDA' : 'Not matched in openFDA' }}
+            </span>
+            <span class="ocr-state" [class.ok]="result.fda.matched" [class.warn]="!result.fda.matched">
+              {{ result.fda.matched ? '✅' : '⚠️' }}
+            </span>
+          </div>
+        </div>
+
+        <div class="fda-details" *ngIf="result.fda?.checked">
+          <span class="fda-meta" *ngIf="result.fda?.brand_name">Brand: {{ result.fda?.brand_name }}</span>
+          <span class="fda-meta" *ngIf="result.fda?.generic_name">Generic: {{ result.fda?.generic_name }}</span>
+          <span class="fda-meta" *ngIf="result.fda?.manufacturer_name">Manufacturer: {{ result.fda?.manufacturer_name }}</span>
+          <span class="fda-note">{{ result.fda?.message }}</span>
+        </div>
+
+        <div class="raw-text" *ngIf="result.ocr.raw_text">
+          <span class="raw-text-label">Raw text detected:</span>
+          <p class="raw-text-content">{{ result.ocr.raw_text }}</p>
+        </div>
       </div>
     </section>
   `,
@@ -291,6 +364,92 @@ import { MedicineResult, RedFlag } from '../../models/medicine.model';
       font-size: 0.9rem;
     }
 
+    .ocr-panel {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .ocr-title {
+      font-family: var(--font-display);
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 0.75rem;
+    }
+    .ocr-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .ocr-row {
+      display: grid;
+      grid-template-columns: 110px 1fr auto;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.4rem 0;
+    }
+    .ocr-label {
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .ocr-value {
+      color: var(--text-primary);
+      font-size: 0.86rem;
+      font-weight: 500;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .ocr-state {
+      font-size: 0.95rem;
+      line-height: 1;
+    }
+    .raw-text {
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px dashed rgba(255, 255, 255, 0.12);
+    }
+    .fda-details {
+      margin-top: 0.6rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .fda-meta {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-secondary);
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+    .fda-note {
+      width: 100%;
+      color: var(--text-secondary);
+      font-size: 0.75rem;
+      line-height: 1.45;
+      margin-top: 0.1rem;
+    }
+    .raw-text-label {
+      display: block;
+      color: var(--text-secondary);
+      font-size: 0.78rem;
+      margin-bottom: 0.25rem;
+    }
+    .raw-text-content {
+      color: var(--text-primary);
+      font-size: 0.8rem;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
     @media (max-width: 640px) {
       .result-top {
         flex-direction: column;
@@ -298,6 +457,9 @@ import { MedicineResult, RedFlag } from '../../models/medicine.model';
       }
       .result-card {
         padding: 1.5rem;
+      }
+      .ocr-row {
+        grid-template-columns: 90px 1fr auto;
       }
     }
   `]
@@ -337,7 +499,8 @@ export class ResultCardComponent implements AfterViewInit, OnChanges {
     return 'var(--accent-red)';
   }
 
-  getConfidenceColor(confidence: number): string {
+  getConfidenceColor(confidence: number | null): string {
+    if (typeof confidence !== 'number' || !Number.isFinite(confidence)) return 'var(--text-secondary)';
     if (confidence >= 80) return 'var(--accent-red)';
     if (confidence >= 50) return 'var(--accent-yellow)';
     return 'var(--text-secondary)';
@@ -345,6 +508,42 @@ export class ResultCardComponent implements AfterViewInit, OnChanges {
 
   trackByFlag(_index: number, item: RedFlag): string {
     return item.flag;
+  }
+
+  formatRedFlagText(flag: string): string {
+    const f = String(flag || '').toLowerCase();
+
+    // Hide raw model/processing failures from the user.
+    if (f.includes('visual model inference unavailable')) {
+      return 'Some visual checks could not be completed. Consider manual verification.';
+    }
+
+    if (f.includes('ocr not executed') || f.includes('ocr details unavailable')) {
+      return 'Text extraction could not be completed. Please try a clearer, well-lit photo.';
+    }
+
+    if (f.includes('no readable text extracted') || f.includes('ocr weak/failed')) {
+      return 'We could not reliably read the label text. Please retry with a clearer photo.';
+    }
+
+    if (f.includes('trocr failed')) {
+      return 'Text extraction was limited. Please retry for best results.';
+    }
+
+    return flag;
+  }
+
+  getConfidencePercent(confidence: number | null): string | null {
+    if (typeof confidence !== 'number' || !Number.isFinite(confidence)) return null;
+    return `${confidence}%`;
+  }
+
+  displayField(value: string | null, fallback: string): string {
+    if (!value) {
+      return fallback;
+    }
+
+    return value.trim().length > 0 ? value : fallback;
   }
 
   private animateScore(targetScore: number): void {

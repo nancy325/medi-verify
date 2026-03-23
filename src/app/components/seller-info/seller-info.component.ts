@@ -52,6 +52,25 @@ import { SellerInfo } from '../../models/medicine.model';
 
       <!-- Stats Grid -->
       <div class="stats-grid">
+        <!-- Trust Score (shown first) -->
+        <div class="stat-card" [class.trust-high]="isTrusted(seller)" [class.trust-low]="!isTrusted(seller)">
+          <p class="stat-label">Trust Score</p>
+          <div class="stat-value-row">
+            <span class="stat-value" [style.color]="isTrusted(seller) ? 'var(--accent-green)' : 'var(--accent-red)'">
+              {{ displayTrust }}%
+            </span>
+          </div>
+          <div class="trust-bar">
+            <div
+              class="trust-bar-fill"
+              [style.width.%]="displayTrust"
+              [style.background]="isTrusted(seller)
+                ? 'linear-gradient(90deg, var(--accent-green), var(--accent-cyan))'
+                : 'linear-gradient(90deg, var(--accent-red), var(--accent-yellow))'"
+            ></div>
+          </div>
+        </div>
+
         <!-- Rating -->
         <div class="stat-card">
           <p class="stat-label">Rating</p>
@@ -71,25 +90,6 @@ import { SellerInfo } from '../../models/medicine.model';
             <span class="stat-value">{{ seller.reviews | number }}</span>
           </div>
           <p class="stat-extra">Verified purchases</p>
-        </div>
-
-        <!-- Trust Score -->
-        <div class="stat-card" [class.trust-high]="isTrusted(seller)" [class.trust-low]="!isTrusted(seller)">
-          <p class="stat-label">Trust Score</p>
-          <div class="stat-value-row">
-            <span class="stat-value" [style.color]="isTrusted(seller) ? 'var(--accent-green)' : 'var(--accent-red)'">
-              {{ displayTrust }}%
-            </span>
-          </div>
-          <div class="trust-bar">
-            <div
-              class="trust-bar-fill"
-              [style.width.%]="displayTrust"
-              [style.background]="isTrusted(seller)
-                ? 'linear-gradient(90deg, var(--accent-green), var(--accent-cyan))'
-                : 'linear-gradient(90deg, var(--accent-red), var(--accent-yellow))'"
-            ></div>
-          </div>
         </div>
       </div>
     </section>

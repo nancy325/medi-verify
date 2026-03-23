@@ -31,7 +31,26 @@ export class MedicineService {
       { area: 'Typography Analysis', issue: 'Font spacing inconsistency', detail: 'Character kerning varies across the label — genuine manufacturers use consistent typesetting' },
       { area: 'Color Integrity', issue: 'Pigment saturation deviation', detail: 'Color values deviate from expected pharmaceutical-grade printing standards' },
       { area: 'Hologram Detection', issue: 'Security feature scan', detail: 'Scanning for holographic security markers typically present on authentic packaging' }
-    ]
+    ],
+    ocr: {
+      raw_text: '',
+      extracted_fields: {
+        drugName: null,
+        dosage: null,
+        batchNumber: null,
+        expiryDate: null,
+        manufacturer: null,
+        rxSymbol: false
+      },
+      matched_drug: null,
+      validation_issues: [
+        {
+          severity: 'WARNING',
+          field: 'OCR',
+          observation: 'OCR details unavailable in fallback mode'
+        }
+      ]
+    }
   };
 
   private readonly sellers: SellerInfo[] = [
