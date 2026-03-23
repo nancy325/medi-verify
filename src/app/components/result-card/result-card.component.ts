@@ -125,6 +125,11 @@ import { MedicineResult, RedFlag } from '../../models/medicine.model';
       <div class="ocr-panel" *ngIf="result.ocr">
         <h4 class="ocr-title">What we read from this package</h4>
 
+        <div class="model-info" *ngIf="getModelSummary(result) as modelSummary">
+          <span class="model-label">Models used:</span>
+          <span class="model-value">{{ modelSummary }}</span>
+        </div>
+
         <div class="ocr-grid">
           <div class="ocr-row">
             <span class="ocr-label">Drug Name</span>
@@ -371,6 +376,25 @@ import { MedicineResult, RedFlag } from '../../models/medicine.model';
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid rgba(255, 255, 255, 0.1);
     }
+    .model-info {
+      margin-bottom: 0.75rem;
+      padding: 0.5rem 0.65rem;
+      border-radius: 8px;
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      font-size: 0.76rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+    .model-label {
+      color: var(--accent-blue);
+      font-weight: 700;
+    }
+    .model-value {
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
     .ocr-title {
       font-family: var(--font-display);
       font-size: 0.9rem;
@@ -544,6 +568,28 @@ export class ResultCardComponent implements AfterViewInit, OnChanges {
     }
 
     return value.trim().length > 0 ? value : fallback;
+  }
+
+  getModelSummary(result: MedicineResult): string | null {
+    const model = result.model_used;
+
+    if (!model) {
+      return null;
+    }
+
+    if (typeof model === 'string') {
+      return model;
+    }
+
+    const parts: string[] = [];
+    if (model.vision) parts.push(`Vision: ${model.vision}`);
+    if (model.ocr) parts.push(`OCR: ${model.ocr}`);
+    if (model.quality) parts.push(`Quality: ${model.quality}`);
+    if (model.core_vqa) parts.push(`VQA: ${model.core_vqa}`);
+    if (model.fallback_vqa) parts.push(`VQA fallback: ${model.fallback_vqa}`);
+    if (model.clip) parts.push(`CLIP: ${model.clip}`);
+
+    return parts.length > 0 ? parts.join(' • ') : null;
   }
 
   private animateScore(targetScore: number): void {

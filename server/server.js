@@ -4,6 +4,9 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const sharp = require('sharp');
+const { runOCR } = require('./services/ocr.service');
+const { runVisionAnalysis } = require('./services/vision.service');
+const { analyzeImageQuality } = require('./services/quality.service');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -16,7 +19,6 @@ app.use(express.json({ limit: '50mb' }));
 const BLIP_VQA_API_URL = 'https://api-inference.huggingface.co/models/Salesforce/blip-vqa-base';
 const VILT_VQA_FALLBACK_URL = 'https://api-inference.huggingface.co/models/dandelin/vilt-b32-finetuned-vqa';
 const CLIP_ZERO_SHOT_API_URL = 'https://api-inference.huggingface.co/models/openai/clip-vit-base-patch32';
-const TROCR_API_URL = 'https://api-inference.huggingface.co/models/microsoft/trocr-base-printed';
 const OPEN_FDA_DRUG_LABEL_API = 'https://api.fda.gov/drug/label.json';
 const HF_TOKEN = process.env.HF_TOKEN || process.env.HF_API_TOKEN;
 
@@ -229,18 +231,6 @@ async function runVisualChecks(imageBase64) {
   return results;
 }
 
-// ─── TrOCR (Step 1: OCR extraction helper) ─────────────────
-async function runTrOCR(imageBase64) {
-  const response = await axios.post(
-    TROCR_API_URL,
-    { inputs: imageBase64 },
-    { headers: { Authorization: `Bearer ${HF_TOKEN}` } }
-  );
-
-  // Returns array of { generated_text: "..." }
-  return response.data?.[0]?.generated_text || '';
-}
-
 // ─── Bug 3: Local image quality gate (pre-check) ─────────────
 async function precheckImageQuality(imageBuffer) {
   const metadata = await sharp(imageBuffer).metadata();
@@ -315,7 +305,9 @@ function checkUnexpectedScript(rawText) {
 // Reuse it to avoid an extra TrOCR call, and only TrOCR the rotated image.
 async function checkTextOrientation(imageBuffer, originalOcrText) {
   const rotatedBuffer = await sharp(imageBuffer).rotate(180).toBuffer();
-  const rotatedResult = await runTrOCR(rotatedBuffer.toString('base64'));
+
+  // OCR is local-only (tesseract.js) for reliability.
+  const rotatedResult = (await runOCR(rotatedBuffer.toString('base64'))).text;
 
   const originalWords = String(originalOcrText || '')
     .split(' ')
@@ -809,57 +801,49 @@ app.post('/api/verify-medicine', async (req, res) => {
     // Strip data URI prefix to get raw base64
     const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
     const imageBuffer = Buffer.from(base64Data, 'base64');
-
-    // ─── Bug 3: Quality gate (avoid running models on bad images) ───
+    // Step 3: Deterministic quality gate + classification metrics (Sharp locally).
+    // Runs before any vision model calls to avoid hallucinations on bad images.
+    let qualityResult = null;
     try {
-      const quality = await precheckImageQuality(imageBuffer);
-      if (!quality.ok) {
+      qualityResult = await analyzeImageQuality(base64Data);
+      if (qualityResult?.qualityGate === 'FAIL') {
         return res.json({
           error: 'image_quality',
-          message: 'Please upload a clearer, well-lit photo',
+          message: qualityResult?.reason || 'Please upload a clearer, well-lit photo',
           confidence: 'Low'
         });
       }
     } catch (qualityErr) {
       // If sharp fails to analyze, continue to avoid blocking the prototype.
-      console.warn('⚠️ Image quality pre-check failed; continuing:', qualityErr.message || qualityErr);
-    }
-
-    if (!HF_TOKEN || HF_TOKEN === 'your_huggingface_token_here') {
-      console.warn('⚠️  No valid HF_TOKEN set — returning fallback result');
-      ocrPayload.validation_issues = [
-        {
-          severity: 'WARNING',
-          field: 'OCR',
-          observation: 'OCR not executed because HF token is missing'
-        }
-      ];
-      return res.json(buildDeterministicFallbackResult(ocrPayload, fdaCheck, { inferenceUnavailable: true }));
+      console.warn('⚠️ Image quality analysis failed; continuing:', qualityErr.message || qualityErr);
     }
 
     // Step 2: TrOCR extraction + deterministic text validation
     let trocrText = '';
     let textValidation = { issues: [], matched_drug: null };
     let ocrFields = parseOCRFields('');
+    let ocrSource = 'tesseract';
 
     try {
-      trocrText = await runTrOCR(base64Data);
+      const localOcr = await runOCR(base64Data);
+      trocrText = localOcr.text;
+      ocrSource = 'tesseract';
+
       ocrFields = parseOCRFields(trocrText || '');
       textValidation = await validateExtractedText(trocrText || '', imageBuffer);
-      console.log('📝 TrOCR text:', trocrText || '[empty]');
+      console.log('📝 OCR text:', trocrText || '[empty]');
     } catch (ocrError) {
-      console.warn('⚠️  TrOCR failed — continuing with visual checks only:', ocrError.message || ocrError);
+      console.warn('⚠️ Local OCR failed:', ocrError.message || ocrError);
       textValidation = {
         issues: [
           {
             severity: 'WARNING',
             field: 'OCR',
-            observation: 'TrOCR extraction failed; text validation could not be completed'
+            observation: 'Local OCR extraction failed; text validation could not be completed'
           }
         ],
         matched_drug: null
       };
-      ocrFields = parseOCRFields('');
     }
 
     ocrPayload = {
@@ -881,81 +865,132 @@ app.post('/api/verify-medicine', async (req, res) => {
       ];
     }
 
-    // ─── Vision steps (Bug 2: isolate failures so OCR never drops) ───
-    let vqaChecks = [];
-    let clipResult = null;
+    // ─── Step 2: Visual analysis via Gemini Vision (replace BLIP-VQA + CLIP) ───
     let visionErrors = null;
+    let geminiResult = null;
 
     try {
-      vqaChecks = await runVisualChecks(base64Data);
-      console.log('🔍 VQA checks:', vqaChecks);
-    } catch (vqaErr) {
+      geminiResult = await runVisionAnalysis(image);
+      // issues[] and authenticityScore are handled inside the service.
+      console.log('🔍 Gemini vision issues:', geminiResult?.issues?.length || 0);
+    } catch (visionErr) {
       visionErrors = visionErrors || {};
-      visionErrors.vqa = vqaErr.message || String(vqaErr);
-      console.warn('⚠️ VQA failed — continuing with OCR + deterministic checks:', vqaErr.message || vqaErr);
+      visionErrors.gemini = visionErr.message || String(visionErr);
+      console.warn('⚠️ Gemini vision failed — continuing with OCR + deterministic checks:', visionErrors.gemini);
     }
 
-    try {
-      clipResult = await runClipZeroShot(base64Data);
-      console.log('🔍 CLIP top label:', clipResult?.top_label, clipResult?.top_score);
-    } catch (clipErr) {
-      visionErrors = visionErrors || {};
-      visionErrors.clip = clipErr.message || String(clipErr);
-      console.warn('⚠️ CLIP failed — continuing with OCR + deterministic checks:', clipErr.message || clipErr);
+    // Convert Gemini issues into the existing UI red-flag shape.
+    // Confidence is not provided by the Gemini snippet; keep it as `null` so UI can hide it.
+    const visualRedFlags = (geminiResult?.issues || []).map((issue) => ({
+      flag: `${issue.field}: ${issue.observation}`,
+      confidence: null
+    }));
+
+    // If Gemini totally fails, show a friendly red-flag instead of raw error text.
+    if ((visionErrors || geminiResult?.source === 'gemini-failed') && visualRedFlags.length === 0) {
+      visualRedFlags.push({
+        flag: 'Visual model inference unavailable — verdict based on OCR + rule checks only',
+        confidence: null
+      });
     }
 
-    // Build a visual scaffold for explanations/red_flags, then override score using weighted formula.
-    const result = buildVisualVerdict(vqaChecks, clipResult || {});
-    result.model_used = {
-      core_vqa: 'Salesforce/blip-vqa-base',
-      fallback_vqa: 'dandelin/vilt-b32-finetuned-vqa',
-      clip: 'openai/clip-vit-base-patch32',
-      ocr: 'microsoft/trocr-base-printed'
+    // Provide user-facing explanation cards (keeps existing UI feature working).
+    const aiExplanations = (geminiResult?.issues || []).slice(0, 5).map((issue) => ({
+      area: 'Gemini Vision',
+      issue: String(issue.field || 'Visual feature'),
+      detail: String(issue.observation || 'Unable to assess this visual feature clearly.')
+    }));
+
+    // Add deterministic quality explanations so the user understands why clarity matters.
+    // (Local Sharp metrics; no external model failure messages.)
+    const qualityExplanations = (qualityResult?.issues || []).slice(0, 2).map((q) => ({
+      area: 'Deterministic Quality',
+      issue: q.field,
+      detail: q.observation
+    }));
+
+    aiExplanations.push(...qualityExplanations);
+
+    const visualScore0to100 =
+      typeof geminiResult?.authenticityScore === 'number' ? geminiResult.authenticityScore : 50;
+
+    // computeFinalScore expects visual components normalized to 0..1.
+    const visualAuthenticScoreNorm = Math.max(0, Math.min(1, visualScore0to100 / 100));
+
+    // Step 3: use deterministic sharp metrics as the "classification" layer
+    // (replaces Sharp CLIP stand-in used previously in scoring).
+    const qualityIssues = qualityResult?.issues || [];
+    const deterministicAuthenticScore100 = qualityResult?.qualityGate === 'FAIL'
+      ? 25
+      : Math.max(30, 90 - (qualityIssues.length * 10));
+
+    const deterministicAuthenticScoreNorm = Math.max(
+      0,
+      Math.min(1, deterministicAuthenticScore100 / 100)
+    );
+
+    // Add deterministic quality issues to the same red-flag list the UI renders.
+    // Confidence stays null (deterministic local metrics).
+    if (qualityIssues.length > 0) {
+      for (const q of qualityIssues) {
+        visualRedFlags.push({
+          flag: `${q.field}: ${q.observation}`,
+          confidence: null
+        });
+      }
+    }
+
+    const pseudoClipResult = { authenticScore: deterministicAuthenticScoreNorm };
+    const pseudoVqaPassRate = visualAuthenticScoreNorm;
+
+    // Feed quality issues into score "textIssues" weighting so assessment changes when
+    // image quality is poor (without changing the response shape).
+    const qualityIssuesForScore = qualityIssues.map((q) => ({
+      severity: q.severity,
+      field: q.field,
+      observation: q.observation
+    }));
+
+    const { score, assessment } = computeFinalScore(
+      pseudoClipResult,
+      pseudoVqaPassRate,
+      [...(ocrPayload.validation_issues || []), ...qualityIssuesForScore]
+    );
+
+    const result = {
+      authenticity_score: score,
+      red_flags: visualRedFlags,
+      summary: assessment,
+      ai_explanations: aiExplanations,
+      scoring_breakdown: {
+        gemini_authenticityScore: visualScore0to100,
+        clip_authenticScore: deterministicAuthenticScoreNorm,
+        vqaPassRate: pseudoVqaPassRate,
+        textIssuesCount: ocrPayload.validation_issues.length + qualityIssuesForScore.length,
+        deterministic_quality: {
+          qualityGate: qualityResult?.qualityGate || 'PASS',
+          metrics: qualityResult?.metrics || {},
+          qualityIssuesCount: qualityIssuesForScore.length,
+          deterministicAuthenticScore100
+        }
+      }, // new field (allowed)
+      ocr: ocrPayload,
+      fda: fdaCheck,
+      visual_checks: [], // kept for response compatibility
+      clip: null, // kept for response compatibility
+      model_used: {
+        // kept keys for compatibility; BLIP/CLIP are replaced by Gemini
+        core_vqa: null,
+        fallback_vqa: null,
+        clip: null,
+        vision: geminiResult?.source || 'gemini',
+        ocr: ocrSource
+      }
     };
 
-    // Always include OCR + FDA blocks, even when vision fails.
-    result.ocr = ocrPayload;
-    result.fda = fdaCheck;
-    result.visual_checks = vqaChecks;
-    result.clip = clipResult;
     if (visionErrors) result.vision_errors = visionErrors; // new field (allowed)
 
-    // ─── Weighted scoring formula (Feature: computed final authenticity score) ───
-    const evaluated = vqaChecks.filter((c) => c.pass === true || c.pass === false);
-    const vqaPassRate = evaluated.length
-      ? (evaluated.filter((c) => c.pass === true).length / evaluated.length)
-      : null;
-
-    const canCompute =
-      clipResult &&
-      typeof clipResult.authenticScore === 'number' &&
-      typeof vqaPassRate === 'number';
-
-    if (canCompute) {
-      const { score, assessment } = computeFinalScore(
-        clipResult,
-        vqaPassRate,
-        ocrPayload.validation_issues
-      );
-
-      result.authenticity_score = score;
-      result.summary = assessment;
-      result.scoring_breakdown = {
-        clip_authenticScore: clipResult.authenticScore,
-        vqaPassRate,
-        textIssuesCount: ocrPayload.validation_issues.length
-      }; // new field (allowed)
-
-      return res.json(result);
-    }
-
-    // If we can't compute weighted score, fall back deterministically but keep OCR intact.
-    const fallback = buildDeterministicFallbackResult(ocrPayload, fdaCheck, { inferenceUnavailable: true });
-    fallback.model_used = result.model_used;
-    fallback.visual_checks = vqaChecks;
-    fallback.clip = clipResult;
-    if (visionErrors) fallback.vision_errors = visionErrors;
-    return res.json(fallback);
+    return res.json(result);
 
   } catch (error) {
     console.error('❌ API Error:', error.message || error);

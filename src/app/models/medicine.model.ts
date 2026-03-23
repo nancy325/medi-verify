@@ -1,6 +1,6 @@
 export interface RedFlag {
   flag: string;
-  confidence: number;
+  confidence: number | null;
 }
 
 export interface AiExplanation {
@@ -44,6 +44,15 @@ export interface FdaResult {
   error?: string;
 }
 
+export interface ModelUsedInfo {
+  quality?: string | null;
+  core_vqa?: string | null;
+  fallback_vqa?: string | null;
+  clip?: string | null;
+  vision?: string | null;
+  ocr?: string | null;
+}
+
 export interface MedicineResult {
   authenticity_score: number;
   red_flags: RedFlag[];
@@ -51,7 +60,7 @@ export interface MedicineResult {
   ai_explanations?: AiExplanation[];
   ocr?: OcrResult;
   fda?: FdaResult;
-  model_used?: string;
+  model_used?: string | ModelUsedInfo;
 }
 
 export interface SellerInfo {

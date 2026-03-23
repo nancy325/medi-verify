@@ -1,20 +1,26 @@
 # 🚀 Medi-Verify AI - Intelligent Medicine Authenticity Verification
 
-Medi-Verify is a state-of-the-art web application designed to combat the issue of counterfeit medicines. Built with Angular on the frontend and Node.js/Express.js on the backend, it leverages the powerful **BLIP-2 (Bootstrapping Language-Image Pre-training)** Vision-Language AI model from Hugging Face for intelligent image analysis and authenticity verification.
+Medi-Verify is a state-of-the-art web application designed to combat the issue of counterfeit medicines. Built with Angular on the frontend and Node.js/Express.js on the backend, it uses:
+- **Gemini Vision** for visual forensics (hologram/logo/tampering/print quality)
+- **Sharp** for deterministic local image-quality and print metrics (no extra API calls)
+- **TrOCR (HF)** for text extraction, with a **local Tesseract OCR fallback** when Hugging Face isn’t available
 
 ## 🌟 Key Features
 
 - **AI-Powered Medicine Verification**: Upload an image of a medicine package or bill, and our AI analyzes the packaging details, serial numbers, and text to determine authenticity.
 - **Explainable AI Insights**: The application provides an *"AI Explanation Panel"* breaking down exactly why a medicine was flagged as authentic or counterfeit, including text recognized, visual features matched, and confidence levels.
 - **Premium Glassmorphism UI**: A sleek, modern user interface built using vanilla CSS with complex glassmorphism effects, immersive background animations, and highly responsive components.
-- **Real-Time Analysis**: Integrates a seamless backend processing pipeline using Axios + Hugging Face Inference API for low-latency predictions.
+- **Real-Time Analysis**: Integrates a seamless backend processing pipeline using Axios + Gemini Vision (and optional HF TrOCR) for low-latency predictions.
 
 ## 🛠️ Technology Stack
 
 - **Frontend**: Angular 17+ (TypeScript, RxJS)
 - **Styling**: Vanilla CSS (CSS Variables, Flexbox/Grid, Animations)
 - **Backend API**: Node.js & Express.js
-- **Artificial Intelligence**: BLIP-2 Vision-Language Model via Hugging Face Inference API
+- **Artificial Intelligence / Vision**:
+  - Gemini Vision (Google Generative AI)
+  - TrOCR / OCR (Hugging Face) with local Tesseract fallback
+  - Deterministic image-quality metrics using Sharp
 
 ## 🚀 Getting Started
 
@@ -23,7 +29,8 @@ Follow these instructions to run the application locally.
 ### Prerequisites
 - Node.js (v18+)
 - Angular CLI
-- Hugging Face API Token (Free tier works perfectly)
+- Google Gemini API Key (for vision analysis)
+- Hugging Face token (optional but recommended for OCR accuracy)
 
 ### 1. Backend Setup
 
@@ -38,6 +45,11 @@ Follow these instructions to run the application locally.
 3. Create a `.env` file in the `server` directory and add your API credentials:
    ```env
    PORT=5000
+   # Required for Step 2 (Gemini Vision)
+   GEMINI_API_KEY=your_google_gemini_key_here
+
+   # Optional: used for OCR (TrOCR) with Hugging Face.
+   # If missing or invalid, the backend falls back to local Tesseract OCR.
    HF_TOKEN=your_hugging_face_token_here
    ```
 4. Start the backend server:
@@ -74,33 +86,47 @@ Follow these instructions to run the application locally.
 
 ## 🛟 Troubleshooting
 
-### Warning: `HF_TOKEN not set — fallback mode active`
+### Visual checks unavailable (Gemini failure)
 
-If you see this warning in backend logs, the app is running in fallback mode (mock/safe response) instead of live BLIP-2 analysis.
+If Gemini cannot be reached (missing/invalid key, quota, rate limits), the backend will degrade gracefully:
+- OCR + deterministic checks still run
+- the UI shows user-friendly red flags (instead of raw model failures)
 
 Checklist:
-- Ensure `server/.env` exists
-- Ensure the variable name is exactly `HF_TOKEN` (not `HF_API_TOKEN`)
-- Ensure token value is not the placeholder (`your_hugging_face_token_here`)
-- Restart backend after editing `.env`
+- Ensure `server/.env` contains `GEMINI_API_KEY`
+- Restart the backend after editing `.env`
+
+### OCR fallback active (HF_TOKEN missing)
+
+If `HF_TOKEN` is missing/invalid, the backend will fall back to local **Tesseract OCR** (with Sharp preprocessing).
+
+Checklist:
+- Ensure the variable name is exactly `HF_TOKEN`
+- Restart the backend after editing `.env`
 
 Minimal `server/.env` example:
 
 ```env
 PORT=5000
+GEMINI_API_KEY=your_google_gemini_key_here
 HF_TOKEN=hf_your_real_token_here
 ```
 
-You can also copy from `server/.env.example` and then replace the token value.
-
 ## 🧠 How the AI Works
 
-The AI verification system uses the `Salesforce/blip2-opt-2.7b` model via Hugging Face Inference API.
-1. The user uploads an image of a medicine on the frontend.
-2. The Angular service serializes the image as base64 and posts it to our Node backend.
-3. The Express backend strips the data URI prefix, converts the payload to raw bytes, and sends it to BLIP-2 for image-to-text description generation.
-4. BLIP-2 responds with generated text describing the visible packaging/image features.
-5. The backend applies rule-based scoring on the generated description, returning an *"Authenticity Score"*, red flags, summary, and explanation cards.
+Step-by-step pipeline:
+1. The user uploads an image in the UI (base64 payload sent to the backend).
+2. **Quality gate (Sharp)** runs locally to reject very small/dark/blurry images early.
+3. **OCR (Step 1)**:
+   - If `HF_TOKEN` is available: run TrOCR via Hugging Face.
+   - Otherwise: run local **Tesseract OCR** with Sharp preprocessing.
+   Then parse OCR fields and run deterministic OCR validations.
+4. **Visual forensics (Step 2)**: Gemini Vision analyzes holograms/logo/print/tampering with a vision-only prompt (no text reading).
+5. **Deterministic classification (Step 3)**: Sharp print metrics are incorporated into the final trust score.
+6. The backend computes final `authenticity_score` + `summary` using a weighted fusion of:
+   - Gemini visual evidence
+   - OCR validation issues
+   - Deterministic image-quality metrics
 
 ## 🤝 Contributing
 Contributions are always welcome. Please make sure to follow the established code style and commit message conventions.
