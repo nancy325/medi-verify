@@ -770,8 +770,7 @@ function getFallbackResult() {
   };
 }
 
-// ─── POST /api/verify-medicine ──────────────────────────────
-app.post('/api/verify-medicine', async (req, res) => {
+async function analyzeSingleImage(image) {
   let ocrPayload = {
     raw_text: '',
     extracted_fields: parseOCRFields(''),
@@ -787,15 +786,13 @@ app.post('/api/verify-medicine', async (req, res) => {
   };
 
   try {
-    const { image } = req.body;
-
     if (!image || typeof image !== 'string') {
-      return res.status(400).json({
+      return {
         authenticity_score: 0,
         red_flags: [{ flag: 'No image provided', confidence: 100 }],
         summary: '❌ No image data received.',
         ai_explanations: []
-      });
+      };
     }
 
     // Strip data URI prefix to get raw base64
@@ -990,12 +987,178 @@ app.post('/api/verify-medicine', async (req, res) => {
 
     if (visionErrors) result.vision_errors = visionErrors; // new field (allowed)
 
-    return res.json(result);
+    return result;
 
   } catch (error) {
     console.error('❌ API Error:', error.message || error);
-    return res.json(buildDeterministicFallbackResult(ocrPayload, fdaCheck, { inferenceUnavailable: true }));
+    return buildDeterministicFallbackResult(ocrPayload, fdaCheck, { inferenceUnavailable: true });
   }
+}
+
+function aggregateResults(results) {
+  if (!Array.isArray(results) || results.length === 0) {
+    return {
+      authenticity_score: 0,
+      red_flags: [{ flag: 'No analysis results generated', confidence: 100 }],
+      summary: '❌ Unable to analyze provided images.',
+      ai_explanations: []
+    };
+  }
+
+  if (results.length === 1) {
+    return results[0];
+  }
+
+  const scoreTotal = results.reduce((total, result) => {
+    const score = typeof result?.authenticity_score === 'number' ? result.authenticity_score : 0;
+    return total + score;
+  }, 0);
+  const averageScore = Math.round(scoreTotal / results.length);
+
+  const redFlagMap = new Map();
+  for (const result of results) {
+    for (const redFlag of result?.red_flags || []) {
+      const key = String(redFlag?.flag || '').trim();
+      if (!key) continue;
+
+      const existing = redFlagMap.get(key);
+      const existingConfidence = typeof existing?.confidence === 'number' ? existing.confidence : null;
+      const candidateConfidence = typeof redFlag?.confidence === 'number' ? redFlag.confidence : null;
+
+      if (!existing) {
+        redFlagMap.set(key, { flag: key, confidence: candidateConfidence });
+      } else if (existingConfidence === null && candidateConfidence !== null) {
+        redFlagMap.set(key, { flag: key, confidence: candidateConfidence });
+      } else if (existingConfidence !== null && candidateConfidence !== null && candidateConfidence > existingConfidence) {
+        redFlagMap.set(key, { flag: key, confidence: candidateConfidence });
+      }
+    }
+  }
+
+  const redFlags = Array.from(redFlagMap.values()).slice(0, 12);
+
+  const explanationMap = new Map();
+  for (const result of results) {
+    for (const explanation of result?.ai_explanations || []) {
+      const key = `${explanation?.area || ''}::${explanation?.issue || ''}`;
+      if (!key.trim()) continue;
+      if (!explanationMap.has(key)) {
+        explanationMap.set(key, explanation);
+      }
+    }
+  }
+
+  const mergedExplanations = Array.from(explanationMap.values()).slice(0, 6);
+
+  const mergedOcr = {
+    raw_text: results
+      .map((result) => result?.ocr?.raw_text || '')
+      .filter((text) => text.trim().length > 0)
+      .join('\n\n---\n\n'),
+    extracted_fields: {
+      drugName: null,
+      dosage: null,
+      batchNumber: null,
+      expiryDate: null,
+      manufacturer: null,
+      rxSymbol: false
+    },
+    matched_drug: null,
+    validation_issues: []
+  };
+
+  for (const result of results) {
+    const extracted = result?.ocr?.extracted_fields || {};
+    mergedOcr.extracted_fields.drugName = mergedOcr.extracted_fields.drugName || extracted.drugName || null;
+    mergedOcr.extracted_fields.dosage = mergedOcr.extracted_fields.dosage || extracted.dosage || null;
+    mergedOcr.extracted_fields.batchNumber = mergedOcr.extracted_fields.batchNumber || extracted.batchNumber || null;
+    mergedOcr.extracted_fields.expiryDate = mergedOcr.extracted_fields.expiryDate || extracted.expiryDate || null;
+    mergedOcr.extracted_fields.manufacturer = mergedOcr.extracted_fields.manufacturer || extracted.manufacturer || null;
+    mergedOcr.extracted_fields.rxSymbol = Boolean(mergedOcr.extracted_fields.rxSymbol || extracted.rxSymbol);
+    mergedOcr.matched_drug = mergedOcr.matched_drug || result?.ocr?.matched_drug || null;
+  }
+
+  const validationIssueMap = new Map();
+  for (const result of results) {
+    for (const issue of result?.ocr?.validation_issues || []) {
+      const key = `${issue?.severity || ''}::${issue?.field || ''}::${issue?.observation || ''}`;
+      if (!key.trim()) continue;
+      if (!validationIssueMap.has(key)) {
+        validationIssueMap.set(key, issue);
+      }
+    }
+  }
+  mergedOcr.validation_issues = Array.from(validationIssueMap.values());
+
+  const matchedFda = results.find((result) => result?.fda?.matched);
+  const checkedFda = results.find((result) => result?.fda?.checked);
+  const mergedFda = matchedFda?.fda || checkedFda?.fda || {
+    checked: false,
+    matched: false,
+    source: 'openFDA',
+    query: null,
+    message: 'FDA lookup not performed'
+  };
+
+  let summary;
+  if (averageScore >= 85) {
+    summary = '✅ Multi-image review suggests this package appears authentic.';
+  } else if (averageScore >= 60) {
+    summary = '⚠️ Multi-image review found inconsistencies. Manual verification is recommended.';
+  } else {
+    summary = '🚨 Multi-image review indicates high counterfeit risk. Verify professionally before use.';
+  }
+
+  const primaryModelUsed = results[0]?.model_used;
+  const mergedModelUsed = typeof primaryModelUsed === 'string'
+    ? primaryModelUsed
+    : {
+      ...(primaryModelUsed || {}),
+      mode: 'multi-image',
+      images_analyzed: results.length
+    };
+
+  return {
+    authenticity_score: averageScore,
+    red_flags: redFlags,
+    summary: `${summary} (based on ${results.length} photos)`,
+    ai_explanations: mergedExplanations,
+    ocr: mergedOcr,
+    fda: mergedFda,
+    model_used: mergedModelUsed,
+    image_count: results.length,
+    per_image_results: results
+  };
+}
+
+// ─── POST /api/verify-medicine ──────────────────────────────
+app.post('/api/verify-medicine', async (req, res) => {
+  const imagesFromArray = Array.isArray(req.body?.images)
+    ? req.body.images.filter((value) => typeof value === 'string' && value.trim().length > 0)
+    : [];
+
+  const singleImage = typeof req.body?.image === 'string' && req.body.image.trim().length > 0
+    ? [req.body.image]
+    : [];
+
+  const images = imagesFromArray.length > 0 ? imagesFromArray : singleImage;
+
+  if (images.length === 0) {
+    return res.status(400).json({
+      authenticity_score: 0,
+      red_flags: [{ flag: 'No image provided', confidence: 100 }],
+      summary: '❌ No image data received.',
+      ai_explanations: []
+    });
+  }
+
+  const perImageResults = [];
+  for (const image of images) {
+    const imageResult = await analyzeSingleImage(image);
+    perImageResults.push(imageResult);
+  }
+
+  return res.json(aggregateResults(perImageResults));
 });
 
 // ─── Health check ───────────────────────────────────────────

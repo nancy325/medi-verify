@@ -86,9 +86,11 @@ export class MedicineService {
 
   constructor(private readonly http: HttpClient) {}
 
-  verifyMedicine(base64Image: string): Observable<MedicineResult> {
-    const trimmedImage = base64Image.trim();
-    if (trimmedImage.length === 0) {
+  verifyMedicine(base64Image: string | string[]): Observable<MedicineResult> {
+    const images = Array.isArray(base64Image) ? base64Image : [base64Image];
+    const trimmedImages = images.map((image) => image.trim()).filter((image) => image.length > 0);
+
+    if (trimmedImages.length === 0) {
       return of({
         authenticity_score: 40,
         red_flags: [{ flag: 'No image provided', confidence: 100 }],
@@ -97,7 +99,8 @@ export class MedicineService {
       });
     }
 
-    if (trimmedImage.length > MAX_BASE64_LENGTH) {
+    const oversizedImage = trimmedImages.find((image) => image.length > MAX_BASE64_LENGTH);
+    if (oversizedImage) {
       return of({
         authenticity_score: 40,
         red_flags: [{ flag: 'Image payload is too large', confidence: 100 }],
@@ -106,7 +109,8 @@ export class MedicineService {
       });
     }
 
-    if (!trimmedImage.startsWith('data:image/')) {
+    const invalidImage = trimmedImages.find((image) => !image.startsWith('data:image/'));
+    if (invalidImage) {
       return of({
         authenticity_score: 40,
         red_flags: [{ flag: 'Invalid image encoding', confidence: 100 }],
@@ -115,8 +119,12 @@ export class MedicineService {
       });
     }
 
+    const payload = trimmedImages.length === 1
+      ? { image: trimmedImages[0] }
+      : { images: trimmedImages };
+
     return this.http
-      .post<MedicineResult>(this.verifyUrl, { image: trimmedImage })
+      .post<MedicineResult>(this.verifyUrl, payload)
       .pipe(
         timeout(API_TIMEOUT_MS),
         catchError((error: unknown) => {

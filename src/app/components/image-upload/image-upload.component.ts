@@ -9,12 +9,13 @@ import {
   Output,
   ViewChild
 } from '@angular/core';
-import { Observable, Subject, finalize, map, switchMap, takeUntil, timer } from 'rxjs';
+import { Observable, Subject, concatMap, finalize, from, map, switchMap, takeUntil, timer, toArray } from 'rxjs';
 
 import { MedicineResult } from '../../models/medicine.model';
 import { MedicineService } from '../../services/medicine.service';
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_FILES = 6;
 const MIN_SPINNER_MS = 3_000;
 const MAX_SPINNER_MS = 5_000;
 
@@ -38,6 +39,7 @@ const MAX_SPINNER_MS = 5_000;
           #fileInput
           class="hidden"
           type="file"
+          multiple
           accept="image/png,image/jpeg,image/webp"
           (change)="onFileSelected($event)"
         />
@@ -57,7 +59,7 @@ const MAX_SPINNER_MS = 5_000;
           <div class="upload-text">
             <h3 class="upload-title">Upload Medicine Strip</h3>
             <p class="upload-subtitle">
-              Drag & drop or choose a file — PNG, JPG, WebP up to 10 MB
+              Drag & drop or choose up to 6 photos — PNG, JPG, WebP up to 10 MB each
             </p>
           </div>
 
@@ -73,7 +75,7 @@ const MAX_SPINNER_MS = 5_000;
                 <polyline points="17 8 12 3 7 8" />
                 <line x1="12" y1="3" x2="12" y2="15" />
               </svg>
-              Choose Image
+              Choose Images
             </button>
             <button
               type="button"
@@ -86,13 +88,17 @@ const MAX_SPINNER_MS = 5_000;
           </div>
 
           <!-- Preview -->
-          <div *ngIf="previewSrc" class="preview-container">
-            <img
-              [src]="previewSrc"
-              loading="lazy"
-              alt="Uploaded medicine strip preview"
-              class="preview-image"
-            />
+          <div *ngIf="previewSrcList.length > 0" class="preview-container">
+            <div class="preview-label">Selected photos: {{ previewSrcList.length }}</div>
+            <div class="preview-grid">
+              <img
+                *ngFor="let src of previewSrcList; let index = index"
+                [src]="src"
+                loading="lazy"
+                [alt]="'Uploaded medicine strip preview ' + (index + 1)"
+                class="preview-image"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -255,10 +261,27 @@ const MAX_SPINNER_MS = 5_000;
 
     .preview-container {
       width: 100%;
-      max-width: 400px;
+      max-width: 560px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .preview-label {
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+      text-align: left;
+      width: 100%;
+    }
+    .preview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.5rem;
+      width: 100%;
     }
     .preview-image {
       width: 100%;
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
       border-radius: 12px;
       border: 1px solid var(--glass-border);
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
@@ -381,10 +404,10 @@ export class ImageUploadComponent implements OnDestroy {
   isDragActive = false;
   isLoading = false;
   errorMessage: string | null = null;
-  previewSrc: string | null = null;
+  previewSrcList: string[] = [];
 
   private readonly destroy$ = new Subject<void>();
-  private previewObjectUrl: string | null = null;
+  private previewObjectUrls: string[] = [];
 
   constructor(
     private readonly medicineService: MedicineService,
@@ -403,8 +426,8 @@ export class ImageUploadComponent implements OnDestroy {
 
   reset(): void {
     this.errorMessage = null;
-    this.revokePreviewObjectUrl();
-    this.previewSrc = null;
+    this.revokePreviewObjectUrls();
+    this.previewSrcList = [];
     this.isLoading = false;
 
     const input = this.fileInputRef?.nativeElement;
@@ -430,13 +453,14 @@ export class ImageUploadComponent implements OnDestroy {
     event.preventDefault();
     this.isDragActive = false;
 
-    const file = event.dataTransfer?.files?.item(0) ?? null;
-    if (!file) {
+    const fileList = event.dataTransfer?.files;
+    const files = fileList ? Array.from(fileList) : [];
+    if (files.length === 0) {
       this.errorMessage = 'No file detected. Please try again.';
       this.cdr.markForCheck();
       return;
     }
-    this.processFile(file);
+    this.processFiles(files);
   }
 
   onFileSelected(event: Event): void {
@@ -447,21 +471,21 @@ export class ImageUploadComponent implements OnDestroy {
       return;
     }
 
-    const file = target.files?.item(0) ?? null;
-    if (!file) { return; }
-    this.processFile(file);
+    const files = target.files ? Array.from(target.files) : [];
+    if (files.length === 0) { return; }
+    this.processFiles(files);
   }
 
   ngOnDestroy(): void {
-    this.revokePreviewObjectUrl();
+    this.revokePreviewObjectUrls();
     this.destroy$.next();
     this.destroy$.complete();
   }
 
-  private processFile(file: File): void {
+  private processFiles(files: File[]): void {
     this.errorMessage = null;
 
-    const validationError = this.validateImageFile(file);
+    const validationError = this.validateImageFiles(files);
     if (validationError) {
       this.errorMessage = validationError;
       this.cdr.markForCheck();
@@ -469,18 +493,20 @@ export class ImageUploadComponent implements OnDestroy {
     }
 
     this.isLoading = true;
-    this.revokePreviewObjectUrl();
-    this.previewObjectUrl = URL.createObjectURL(file);
-    this.previewSrc = this.previewObjectUrl;
+    this.revokePreviewObjectUrls();
+    this.previewObjectUrls = files.map((file) => URL.createObjectURL(file));
+    this.previewSrcList = [...this.previewObjectUrls];
     this.cdr.markForCheck();
 
     const spinnerTargetMs = this.getSpinnerTargetMs();
     const startMs = Date.now();
 
-    this.fileToBase64(file)
+    from(files)
       .pipe(
-        switchMap((base64Image: string) =>
-          this.medicineService.verifyMedicine(base64Image).pipe(
+        concatMap((file) => this.fileToBase64(file)),
+        toArray(),
+        switchMap((base64Images: string[]) =>
+          this.medicineService.verifyMedicine(base64Images).pipe(
             switchMap((result: MedicineResult) => {
               const elapsedMs = Date.now() - startMs;
               const remainingMs = Math.max(0, spinnerTargetMs - elapsedMs);
@@ -506,17 +532,28 @@ export class ImageUploadComponent implements OnDestroy {
       });
   }
 
-  private validateImageFile(file: File): string | null {
+  private validateImageFiles(files: File[]): string | null {
+    if (files.length > MAX_FILES) {
+      return `Too many files selected. Maximum is ${MAX_FILES} photos.`;
+    }
+
+    if (files.length === 0) {
+      return 'No image selected. Please upload at least one photo.';
+    }
+
     const allowedTypes = new Set<string>(['image/png', 'image/jpeg', 'image/webp']);
-    if (!allowedTypes.has(file.type)) {
-      return 'Unsupported file type. Please upload a PNG, JPG, or WebP image.';
+    for (const file of files) {
+      if (!allowedTypes.has(file.type)) {
+        return 'Unsupported file type. Please upload PNG, JPG, or WebP images only.';
+      }
+      if (file.size <= 0) {
+        return 'Empty file detected. Please upload valid images.';
+      }
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        return 'One or more images are too large. Maximum size is 10 MB per image.';
+      }
     }
-    if (file.size <= 0) {
-      return 'Empty file detected. Please upload a valid image.';
-    }
-    if (file.size > MAX_FILE_SIZE_BYTES) {
-      return 'Image is too large. Maximum size is 10 MB.';
-    }
+
     return null;
   }
 
@@ -549,9 +586,11 @@ export class ImageUploadComponent implements OnDestroy {
     return MIN_SPINNER_MS + Math.floor(Math.random() * (range + 1));
   }
 
-  private revokePreviewObjectUrl(): void {
-    if (!this.previewObjectUrl) { return; }
-    URL.revokeObjectURL(this.previewObjectUrl);
-    this.previewObjectUrl = null;
+  private revokePreviewObjectUrls(): void {
+    if (this.previewObjectUrls.length === 0) { return; }
+    for (const objectUrl of this.previewObjectUrls) {
+      URL.revokeObjectURL(objectUrl);
+    }
+    this.previewObjectUrls = [];
   }
 }
