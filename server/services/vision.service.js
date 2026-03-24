@@ -10,7 +10,7 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 let model = null;
 if (GEMINI_API_KEY) {
   const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-  model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  model = genAI.getGenerativeModel({ model: 'Gemini 2.5 Flash' });
 }
 
 const VISION_PROMPT = `

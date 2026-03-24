@@ -23,7 +23,7 @@ async function analyzeImageQuality(imageBase64) {
   if ((meta?.width || 0) < 200 || (meta?.height || 0) < 200) {
     return {
       qualityGate: 'FAIL',
-      reason: 'Image too small — minimum 200x200px required',
+      reason: 'Image resolution too low — please upload a higher quality photo (minimum 200x200px)',
       metrics
     };
   }
@@ -44,7 +44,7 @@ async function analyzeImageQuality(imageBase64) {
   if (avgBrightness < 30) {
     return {
       qualityGate: 'FAIL',
-      reason: 'Image too dark — please use better lighting',
+      reason: 'Image too dark to analyze — please use better lighting',
       metrics
     };
   }
@@ -54,7 +54,7 @@ async function analyzeImageQuality(imageBase64) {
   if (metrics.entropy < 4.5) {
     return {
       qualityGate: 'FAIL',
-      reason: 'Image too blurry — please upload a clearer photo',
+      reason: 'Image too blurry to analyze — please retake with better focus',
       metrics
     };
   }

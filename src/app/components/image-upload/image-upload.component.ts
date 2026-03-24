@@ -119,7 +119,7 @@ const MAX_SPINNER_MS = 5_000;
           </div>
           <div class="loading-text">
             <h4>AI is analyzing your image…</h4>
-            <p>Running BLIP-2 vision model • Checking authenticity markers</p>
+            <p>Running LLaVA model • Checking authenticity markers</p>
             <div class="loading-bar">
               <div class="loading-bar-fill"></div>
             </div>

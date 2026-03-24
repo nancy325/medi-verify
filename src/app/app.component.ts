@@ -43,7 +43,7 @@ import { MedicineService } from './services/medicine.service';
             <span class="title-icon">🏥</span> Medi-Verify
           </h1>
           <p class="app-subtitle">
-            Upload a medicine strip photo to verify authenticity using Gemini Vision + TrOCR/Tesseract OCR + deterministic Sharp quality checks
+            Upload a medicine strip photo to verify authenticity using LLaVA model + TrOCR/Tesseract OCR + deterministic Sharp quality checks
           </p>
         </header>
 
@@ -65,7 +65,7 @@ import { MedicineService } from './services/medicine.service';
         <!-- Footer -->
         <footer class="app-footer" style="animation: fadeIn 1s ease-out both; animation-delay: 0.5s;">
           <p>Built with <span style="color: var(--accent-red);">♥</span> for hackathon demos — results are advisory only</p>
-          <p class="footer-tech">Powered by Gemini Vision • TrOCR/Tesseract OCR • Sharp Quality Gate • Angular 17 • Express.js</p>
+          <p class="footer-tech">Powered by LLaVA model • TrOCR/Tesseract OCR • Sharp Quality Gate • Angular 17 • Express.js</p>
         </footer>
       </main>
     </div>

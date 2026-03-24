@@ -50,10 +50,10 @@ export interface FdaResult {
 export interface VisionResult {
   score: number;
   flags: string[];
-  source: 'gemini' | 'opencv' | 'none' | 'quality_gate' | 'fallback_neutral' | 'error';
+  source: 'llava' | 'opencv' | 'none' | 'quality_gate' | 'fallback_neutral' | 'error';
   metrics?: Record<string, number>;
   rawResponse?: Record<string, unknown>;
-  geminiError?: string;
+  llavaError?: string;
   opencvError?: string;
 }
 

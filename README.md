@@ -1,7 +1,7 @@
 # 🚀 Medi-Verify AI - Intelligent Medicine Authenticity Verification
 
 Medi-Verify is a state-of-the-art web application designed to combat the issue of counterfeit medicines. Built with Angular on the frontend and Node.js/Express.js on the backend, it uses:
-- **Gemini Vision** for visual forensics (hologram/logo/tampering/print quality)
+- **LLaVA (via Ollama)** for visual forensics (hologram/logo/tampering/print quality)
 - **Sharp** for deterministic local image-quality and print metrics (no extra API calls)
 - **TrOCR (HF)** for text extraction, with a **local Tesseract OCR fallback** when Hugging Face isn’t available
 
@@ -10,7 +10,7 @@ Medi-Verify is a state-of-the-art web application designed to combat the issue o
 - **AI-Powered Medicine Verification**: Upload an image of a medicine package or bill, and our AI analyzes the packaging details, serial numbers, and text to determine authenticity.
 - **Explainable AI Insights**: The application provides an *"AI Explanation Panel"* breaking down exactly why a medicine was flagged as authentic or counterfeit, including text recognized, visual features matched, and confidence levels.
 - **Premium Glassmorphism UI**: A sleek, modern user interface built using vanilla CSS with complex glassmorphism effects, immersive background animations, and highly responsive components.
-- **Real-Time Analysis**: Integrates a seamless backend processing pipeline using Axios + Gemini Vision (and optional HF TrOCR) for low-latency predictions.
+- **Real-Time Analysis**: Integrates a seamless backend processing pipeline using Ollama + LLaVA (and optional HF TrOCR) for low-latency predictions.
 
 ## 🛠️ Technology Stack
 
@@ -18,7 +18,7 @@ Medi-Verify is a state-of-the-art web application designed to combat the issue o
 - **Styling**: Vanilla CSS (CSS Variables, Flexbox/Grid, Animations)
 - **Backend API**: Node.js & Express.js
 - **Artificial Intelligence / Vision**:
-  - Gemini Vision (Google Generative AI)
+   - LLaVA (local via Ollama)
   - TrOCR / OCR (Hugging Face) with local Tesseract fallback
   - Deterministic image-quality metrics using Sharp
 
@@ -29,7 +29,7 @@ Follow these instructions to run the application locally.
 ### Prerequisites
 - Node.js (v18+)
 - Angular CLI
-- Google Gemini API Key (for vision analysis)
+- Ollama installed locally (for LLaVA vision analysis)
 - Hugging Face token (optional but recommended for OCR accuracy)
 
 ### 1. Backend Setup
@@ -45,14 +45,19 @@ Follow these instructions to run the application locally.
 3. Create a `.env` file in the `server` directory and add your API credentials:
    ```env
    PORT=5000
-   # Required for Step 2 (Gemini Vision)
-   GEMINI_API_KEY=your_google_gemini_key_here
+   # Optional: set only if Ollama is running on a non-default host/port
+   # OLLAMA_HOST=http://127.0.0.1:11434
 
    # Optional: used for OCR (TrOCR) with Hugging Face.
    # If missing or invalid, the backend falls back to local Tesseract OCR.
    HF_TOKEN=your_hugging_face_token_here
    ```
-4. Start the backend server:
+4. Ensure Ollama is running and the LLaVA model is available:
+   ```bash
+   ollama serve
+   ollama pull llava
+   ```
+5. Start the backend server:
    ```bash
    npm run dev
    ```
@@ -86,14 +91,15 @@ Follow these instructions to run the application locally.
 
 ## 🛟 Troubleshooting
 
-### Visual checks unavailable (Gemini failure)
+### Visual checks unavailable (LLaVA / Ollama failure)
 
-If Gemini cannot be reached (missing/invalid key, quota, rate limits), the backend will degrade gracefully:
+If Ollama/LLaVA cannot be reached, the backend will degrade gracefully:
 - OCR + deterministic checks still run
 - the UI shows user-friendly red flags (instead of raw model failures)
 
 Checklist:
-- Ensure `server/.env` contains `GEMINI_API_KEY`
+- Ensure Ollama is running (`ollama serve`)
+- Ensure `llava` model exists (`ollama pull llava`)
 - Restart the backend after editing `.env`
 
 ### OCR fallback active (HF_TOKEN missing)
@@ -108,7 +114,7 @@ Minimal `server/.env` example:
 
 ```env
 PORT=5000
-GEMINI_API_KEY=your_google_gemini_key_here
+# OLLAMA_HOST=http://127.0.0.1:11434
 HF_TOKEN=hf_your_real_token_here
 ```
 
@@ -121,12 +127,42 @@ Step-by-step pipeline:
    - If `HF_TOKEN` is available: run TrOCR via Hugging Face.
    - Otherwise: run local **Tesseract OCR** with Sharp preprocessing.
    Then parse OCR fields and run deterministic OCR validations.
-4. **Visual forensics (Step 2)**: Gemini Vision analyzes holograms/logo/print/tampering with a vision-only prompt (no text reading).
+4. **Visual forensics (Step 2)**: LLaVA (via Ollama) analyzes holograms/logo/print/tampering with a vision-only prompt.
 5. **Deterministic classification (Step 3)**: Sharp print metrics are incorporated into the final trust score.
 6. The backend computes final `authenticity_score` + `summary` using a weighted fusion of:
-   - Gemini visual evidence
+   - LLaVA visual evidence
    - OCR validation issues
    - Deterministic image-quality metrics
+
+## 🔁 System Flowchart (Mermaid)
+
+Use this parser-safe Mermaid flowchart in Markdown viewers that support Mermaid:
+
+```mermaid
+flowchart TD
+    A[User uploads medicine images] --> B[Frontend Angular]
+    B --> C[POST api verify medicine]
+    C --> D[Quality check Sharp]
+    D -->|Fail| D1[Return Suspicious poor image quality]
+    D -->|Pass| E[OCR extraction Tesseract]
+    E --> F[Parse OCR fields]
+    F --> G[Validation engine]
+    G --> G1[Expiry check]
+    G --> G2[Batch format check]
+    G --> G3[Known drug local DB check]
+    G --> G4[openFDA API lookup]
+    E --> H[LLaVA vision analysis via Ollama]
+    H -->|Success| H1[Visual score and issues]
+    H -->|Fail| I[OpenCV fallback]
+    I --> I1[Penalized visual score]
+    H1 --> J[Weighted scoring]
+    I1 --> J
+    G --> J
+    J --> K[Hard flag overrides]
+    K --> L[Final status REAL SUSPICIOUS or LIKELY FAKE]
+    L --> M[Return API response]
+    M --> N[Frontend result card flags and model info]
+```
 
 ## 🤝 Contributing
 Contributions are always welcome. Please make sure to follow the established code style and commit message conventions.

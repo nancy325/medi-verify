@@ -5,7 +5,8 @@ import { Observable, catchError, of, timeout } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { MedicineResult, SellerInfo } from '../models/medicine.model';
 
-const API_TIMEOUT_MS = 15_000;
+const API_TIMEOUT_MS = 30_000;
+const API_TIMEOUT_PER_IMAGE_MS = 20_000;
 const MAX_BASE64_LENGTH = 50_000_000;
 
 @Injectable({
@@ -123,10 +124,13 @@ export class MedicineService {
       ? { image: trimmedImages[0] }
       : { images: trimmedImages };
 
+    // Scale timeout with number of images — each image can take ~15s with LLaVA
+    const dynamicTimeout = API_TIMEOUT_MS + ((trimmedImages.length - 1) * API_TIMEOUT_PER_IMAGE_MS);
+
     return this.http
       .post<MedicineResult>(this.verifyUrl, payload)
       .pipe(
-        timeout(API_TIMEOUT_MS),
+        timeout(dynamicTimeout),
         catchError((error: unknown) => {
           void error;
           return of(this.fallbackResult);
