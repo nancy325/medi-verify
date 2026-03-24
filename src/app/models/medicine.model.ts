@@ -50,7 +50,8 @@ export interface FdaResult {
 export interface VisionResult {
   score: number;
   flags: string[];
-  source: 'llava' | 'opencv' | 'none' | 'quality_gate' | 'fallback_neutral' | 'error';
+  source: 'llava' | 'llava-fallback' | 'llava-failed' | 'sharp-fallback' | 'opencv' | 'none' | 'quality_gate' | 'fallback_neutral' | 'error';
+  llava_success?: boolean;
   metrics?: Record<string, number>;
   rawResponse?: Record<string, unknown>;
   llavaError?: string;

@@ -80,6 +80,9 @@ import { MedicineResult, RedFlag } from '../../models/medicine.model';
         <!-- Summary -->
         <div class="result-info">
           <h3 class="result-title">Authenticity Score</h3>
+          <div class="llava-status" *ngIf="result.vision">
+            ✅ LLaVA success: {{ getLlavaSuccess(result) }}
+          </div>
           <div
             class="summary-badge"
             [class.badge-green]="isAuthentic(result)"
@@ -92,7 +95,7 @@ import { MedicineResult, RedFlag } from '../../models/medicine.model';
       </div>
 
       <!-- Red Flags Section -->
-      <div class="red-flags-section" *ngIf="result.red_flags.length > 0">
+      <div class="red-flags-section" *ngIf="result.red_flags.length > 0 || getNotFoundInPhoto(result).length > 0">
         <h4 class="section-title">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
@@ -126,11 +129,28 @@ import { MedicineResult, RedFlag } from '../../models/medicine.model';
               {{ confText }}
             </div>
           </div>
+
+          <div
+            *ngFor="let missing of getNotFoundInPhoto(result); let j = index"
+            class="flag-item"
+            [style.animation-delay]="(0.1 * (result.red_flags.length + j + 1)) + 's'"
+          >
+            <div class="flag-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+            <div class="flag-content">
+              <p class="flag-text">{{ missing }}</p>
+            </div>
+          </div>
         </div>
       </div>
 
       <!-- No Red Flags -->
-      <div *ngIf="result.red_flags.length === 0" class="no-flags">
+      <div *ngIf="result.red_flags.length === 0 && getNotFoundInPhoto(result).length === 0" class="no-flags">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
           <polyline points="22 4 12 14.01 9 11.01"/>
@@ -317,6 +337,19 @@ import { MedicineResult, RedFlag } from '../../models/medicine.model';
       text-transform: uppercase;
       letter-spacing: 0.06em;
       margin-bottom: 0.5rem;
+    }
+
+    .llava-status {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.55rem;
+      border-radius: 999px;
+      background: #ECFDF5;
+      color: #065F46;
+      border: 1px solid #A7F3D0;
+      font-size: 0.75rem;
+      font-weight: 700;
+      margin-bottom: 0.6rem;
     }
 
     .summary-badge {
@@ -566,6 +599,28 @@ export class ResultCardComponent implements AfterViewInit, OnChanges {
     if (model.fallback_vqa) parts.push(`VQA fallback: ${model.fallback_vqa}`);
     if (model.clip) parts.push(`CLIP: ${model.clip}`);
     return parts.length > 0 ? parts.join(' • ') : null;
+  }
+
+  getLlavaSuccess(result: MedicineResult): string {
+    if (typeof result.vision?.llava_success === 'boolean') {
+      return result.vision.llava_success ? 'true' : 'false';
+    }
+    return result.vision?.source === 'llava' ? 'true' : 'false';
+  }
+
+  getNotFoundInPhoto(result: MedicineResult): string[] {
+    const extracted = result.ocr?.extracted_fields;
+    if (!extracted) return [];
+
+    const missing: string[] = [];
+    if (!extracted.drugName) missing.push('Drug name not found in uploaded photo');
+    if (!extracted.dosage) missing.push('Dosage not found in uploaded photo');
+    if (!extracted.batchNumber) missing.push('Batch number not found in uploaded photo');
+    if (!extracted.expiryDate) missing.push('Expiry date not found in uploaded photo');
+    if (!extracted.manufacturer) missing.push('Manufacturer name not found in uploaded photo');
+    if (!extracted.rxSymbol) missing.push('Rx symbol not found in uploaded photo');
+
+    return missing;
   }
 
   private animateScore(targetScore: number): void {

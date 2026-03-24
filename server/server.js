@@ -618,7 +618,8 @@ async function analyzeSingleImage(image) {
       vision: {
         score: visionResult.score,
         flags: visionResult.flags,
-        source: visionResult.source
+        source: visionResult.source,
+        llava_success: !!visionAnalysis?.success
       },
       ocr: {
         raw_text: ocrResult.text,
