@@ -1,9 +1,17 @@
 // services/vision.service.js
+// Gemini Vision API — primary visual analysis provider.
+// Exports both the raw runner and a safe wrapper for fallback logic.
+
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-// gemini-1.5-flash = free tier, fast, vision capable
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+
+// Guard: only create the client if key is present
+let model = null;
+if (GEMINI_API_KEY) {
+  const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+  model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+}
 
 const VISION_PROMPT = `
 You are a pharmaceutical packaging forensics analyst.
@@ -32,73 +40,102 @@ Return ONLY this JSON (no markdown, no explanation):
   "authenticityScore": <0-100 based on visual evidence only>
 }`;
 
+/**
+ * Raw Gemini Vision call — may throw on API errors.
+ */
 async function runVisionAnalysis(imageBase64) {
-  try {
-    // Strip data URL prefix if present
-    const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+  if (!model) {
+    throw new Error('GEMINI_API_KEY not configured');
+  }
 
-    // Detect image type
-    const mimeType = imageBase64.startsWith('data:image/png')
-      ? 'image/png'
-      : 'image/jpeg';
+  // Strip data URL prefix if present
+  const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
 
-    const result = await model.generateContent([
-      VISION_PROMPT,
-      {
-        inlineData: {
-          data: base64Data,
-          mimeType: mimeType
-        }
+  // Detect image type
+  const mimeType = imageBase64.startsWith('data:image/png')
+    ? 'image/png'
+    : 'image/jpeg';
+
+  const result = await model.generateContent([
+    VISION_PROMPT,
+    {
+      inlineData: {
+        data: base64Data,
+        mimeType: mimeType
       }
-    ]);
+    }
+  ]);
 
-    const raw = result.response.text().trim();
+  const raw = result.response.text().trim();
 
-    // Parse JSON response
-    const parsed = JSON.parse(raw);
+  // Strip markdown code fences if Gemini wraps output
+  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
 
-    // Convert to your existing issue format
-    const issues = [];
+  const parsed = JSON.parse(cleaned);
 
-    Object.entries(parsed).forEach(([key, val]) => {
-      if (key === 'authenticityScore') return;
-      if (!val || typeof val.status !== 'string') return;
+  // Convert to issue format
+  const issues = [];
+  Object.entries(parsed).forEach(([key, val]) => {
+    if (key === 'authenticityScore') return;
+    if (!val || typeof val.status !== 'string') return;
+    if (val.status === 'PASS') return;
 
-      // Treat PASS as no issue, but include UNCLEAR/ISSUE so the UI can guide manual review.
-      if (val.status === 'PASS') return;
-
-      const isUnclear = val.status === 'UNCLEAR';
-
-      issues.push({
-        severity:
-          // If truly unclear, downgrade one level.
-          isUnclear
-            ? 'WARNING'
-            : (key === 'hologram' || key === 'tampering' ? 'CRITICAL' : 'WARNING'),
-        field: key,
-        observation: val.detail
-      });
+    const isUnclear = val.status === 'UNCLEAR';
+    issues.push({
+      severity: isUnclear
+        ? 'WARNING'
+        : (key === 'hologram' || key === 'tampering' ? 'CRITICAL' : 'WARNING'),
+      field: key,
+      observation: val.detail
     });
+  });
 
-    return {
-      issues,
-      authenticityScore: parsed.authenticityScore || 50,
-      rawResponse: parsed,
-      source: 'gemini-1.5-flash'
-    };
+  return {
+    issues,
+    authenticityScore: parsed.authenticityScore || 50,
+    visual_score: parsed.authenticityScore || 50,
+    visual_flags: issues.map((i) => `${i.field}: ${i.observation}`),
+    rawResponse: parsed,
+    source: 'gemini'
+  };
+}
+
+/**
+ * Safe wrapper — never throws. Returns a success/failure envelope.
+ * Detects quota, rate-limit, and network errors.
+ *
+ * @param {string} imageBase64 — base64 image (with or without data URI prefix)
+ * @returns {Promise<{ success: boolean, data?: object, error?: string, source: string }>}
+ */
+async function safeGeminiAnalysis(imageBase64) {
+  try {
+    const data = await runVisionAnalysis(imageBase64);
+    return { success: true, data, source: 'gemini' };
   } catch (err) {
-    console.error('Vision analysis failed:', err.message || err);
+    const msg = err?.message || String(err);
+    const status = err?.response?.status || err?.status;
 
-    // Graceful degradation — return empty, not crash
+    // Classify the error for logging
+    let errorType = 'unknown';
+    if (status === 429 || /rate.?limit|quota.?exceeded|resource.?exhausted/i.test(msg)) {
+      errorType = 'rate_limit';
+    } else if (/ECONNREFUSED|ENOTFOUND|ETIMEDOUT|network/i.test(msg)) {
+      errorType = 'network';
+    } else if (/api.?key|auth|permission|GEMINI_API_KEY/i.test(msg)) {
+      errorType = 'auth';
+    } else if (/JSON|parse|Unexpected/i.test(msg)) {
+      errorType = 'parse';
+    }
+
+    console.warn(`⚠️ Gemini vision failed [${errorType}]:`, msg);
+
     return {
-      issues: [],
-      authenticityScore: 50,
-      rawResponse: null,
-      source: 'gemini-failed',
-      error: err.message || String(err)
+      success: false,
+      error: msg,
+      errorType,
+      source: 'gemini'
     };
   }
 }
 
-module.exports = { runVisionAnalysis };
-
+module.exports = { runVisionAnalysis, safeGeminiAnalysis };
