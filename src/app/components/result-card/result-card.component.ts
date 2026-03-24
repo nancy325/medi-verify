@@ -94,8 +94,9 @@ import { MedicineResult, RedFlag } from '../../models/medicine.model';
         </div>
       </div>
 
+      <ng-container *ngIf="getDisplayRedFlags(result) as displayFlags">
       <!-- Red Flags Section -->
-      <div class="red-flags-section" *ngIf="result.red_flags.length > 0 || getNotFoundInPhoto(result).length > 0">
+      <div class="red-flags-section" *ngIf="displayFlags.length > 0">
         <h4 class="section-title">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
@@ -107,7 +108,7 @@ import { MedicineResult, RedFlag } from '../../models/medicine.model';
 
         <div class="flags-list">
           <div
-            *ngFor="let redFlag of result.red_flags; let i = index; trackBy: trackByFlag"
+            *ngFor="let redFlag of displayFlags; let i = index; trackBy: trackByFlag"
             class="flag-item"
             [style.animation-delay]="(0.1 * (i + 1)) + 's'"
           >
@@ -119,7 +120,7 @@ import { MedicineResult, RedFlag } from '../../models/medicine.model';
               </svg>
             </div>
             <div class="flag-content">
-              <p class="flag-text">{{ formatRedFlagText(redFlag.flag) }}</p>
+              <p class="flag-text">{{ redFlag.flag }}</p>
             </div>
             <div
               class="flag-confidence"
@@ -129,34 +130,18 @@ import { MedicineResult, RedFlag } from '../../models/medicine.model';
               {{ confText }}
             </div>
           </div>
-
-          <div
-            *ngFor="let missing of getNotFoundInPhoto(result); let j = index"
-            class="flag-item"
-            [style.animation-delay]="(0.1 * (result.red_flags.length + j + 1)) + 's'"
-          >
-            <div class="flag-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="12" y1="8" x2="12" y2="12"/>
-                <line x1="12" y1="16" x2="12.01" y2="16"/>
-              </svg>
-            </div>
-            <div class="flag-content">
-              <p class="flag-text">{{ missing }}</p>
-            </div>
-          </div>
         </div>
       </div>
 
       <!-- No Red Flags -->
-      <div *ngIf="result.red_flags.length === 0 && getNotFoundInPhoto(result).length === 0" class="no-flags">
+      <div *ngIf="displayFlags.length === 0" class="no-flags">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
           <polyline points="22 4 12 14.01 9 11.01"/>
         </svg>
         <span>No red flags detected — looking good!</span>
       </div>
+      </ng-container>
 
       <!-- OCR Evidence Panel -->
       <div class="ocr-panel" *ngIf="result.ocr">
@@ -569,12 +554,81 @@ export class ResultCardComponent implements AfterViewInit, OnChanges {
   }
 
   formatRedFlagText(flag: string): string {
-    const f = String(flag || '').toLowerCase();
+    const cleaned = String(flag || '').replace(/^\[[a-z0-9-]+\]\s*/i, '').trim();
+    const f = cleaned.toLowerCase();
+
+    if (f.includes('expiry') && (f.includes('not found') || f.includes('unreadable'))) {
+      return 'Expiry date not found on packaging';
+    }
+
+    if ((f.includes('batch') || f.includes('lot')) && (f.includes('not found') || f.includes('traceable'))) {
+      return 'Batch or lot number not found on packaging';
+    }
+
+    if (f.includes('drug name') && f.includes('not found') && f.includes('known medicines')) {
+      return 'Drug name not found in known medicines database';
+    }
+
+    if ((f.includes('drug') || f.includes('medicine')) && f.includes('not found') && (f.includes('fda') || f.includes('openfda'))) {
+      return 'Drug name not found in FDA database';
+    }
+
+    if (f.includes('manufacturer') && f.includes('not found')) {
+      return 'Manufacturer name not found on packaging';
+    }
+
+    if (f.includes('rx symbol') && (f.includes('not found') || f.includes('not detected'))) {
+      return 'Rx symbol not found on packaging';
+    }
+
+    if (f.includes('dosage') && f.includes('not found')) {
+      return 'Dosage not found on packaging';
+    }
+
+    if (f.includes('drug name') && f.includes('not found')) {
+      return 'Drug name not found on packaging';
+    }
+
+    if (f.includes('printcolor') || f.includes('low color variance') || f.includes('faded') || f.includes('washed out')) {
+      return 'Low color variance detected - print may be faded or washed out';
+    }
+
     if (f.includes('visual model inference unavailable')) return 'Some visual checks could not be completed. Consider manual verification.';
     if (f.includes('ocr not executed') || f.includes('ocr details unavailable')) return 'Text extraction could not be completed. Please try a clearer, well-lit photo.';
     if (f.includes('no readable text extracted') || f.includes('ocr weak/failed')) return 'We could not reliably read the label text. Please retry with a clearer photo.';
     if (f.includes('trocr failed')) return 'Text extraction was limited. Please retry for best results.';
-    return flag;
+    return cleaned;
+  }
+
+  getDisplayRedFlags(result: MedicineResult): RedFlag[] {
+    const merged = new Map<string, RedFlag>();
+    const combined: RedFlag[] = [
+      ...(result.red_flags || []),
+      ...this.getNotFoundInPhoto(result).map((flag) => ({ flag, confidence: null }))
+    ];
+
+    for (const item of combined) {
+      const normalizedText = this.formatRedFlagText(item.flag);
+      if (!normalizedText) continue;
+
+      const key = this.getFlagDedupKey(normalizedText);
+      const existing = merged.get(key);
+      if (!existing) {
+        merged.set(key, {
+          flag: normalizedText,
+          confidence: this.toConfidenceOrNull(item.confidence)
+        });
+        continue;
+      }
+
+      const existingConfidence = this.toConfidenceScore(existing.confidence);
+      const nextConfidence = this.toConfidenceScore(item.confidence);
+      if (nextConfidence > existingConfidence) {
+        existing.confidence = item.confidence;
+      }
+    }
+
+    return Array.from(merged.values());
   }
 
   getConfidencePercent(confidence: number | null): string | null {
@@ -621,6 +675,28 @@ export class ResultCardComponent implements AfterViewInit, OnChanges {
     if (!extracted.rxSymbol) missing.push('Rx symbol not found in uploaded photo');
 
     return missing;
+  }
+
+  private getFlagDedupKey(flag: string): string {
+    const text = flag.toLowerCase();
+    if (text.includes('expiry date not found')) return 'missing-expiry-date';
+    if (text.includes('batch or lot number not found')) return 'missing-batch-lot';
+    if (text.includes('drug name not found in fda database')) return 'drug-name-not-found-fda';
+    if (text.includes('drug name not found in known medicines database')) return 'drug-name-not-found-known-db';
+    if (text.includes('drug name not found on packaging')) return 'missing-drug-name';
+    if (text.includes('dosage not found')) return 'missing-dosage';
+    if (text.includes('manufacturer name not found')) return 'missing-manufacturer';
+    if (text.includes('rx symbol not found')) return 'missing-rx-symbol';
+    if (text.includes('low color variance detected')) return 'print-color-quality';
+    return text.replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+
+  private toConfidenceScore(confidence: number | null): number {
+    return typeof confidence === 'number' && Number.isFinite(confidence) ? confidence : -1;
+  }
+
+  private toConfidenceOrNull(confidence: number | null): number | null {
+    return typeof confidence === 'number' && Number.isFinite(confidence) ? confidence : null;
   }
 
   private animateScore(targetScore: number): void {
