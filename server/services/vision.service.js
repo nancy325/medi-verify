@@ -2,8 +2,11 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-// gemini-1.5-flash = free tier, fast, vision capable
+const modelsToTry = [
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-8b',
+  'gemini-2.0-flash-lite',
+];
 
 const VISION_PROMPT = `
 You are a pharmaceutical packaging forensics analyst.
@@ -32,6 +35,11 @@ Return ONLY this JSON (no markdown, no explanation):
   "authenticityScore": <0-100 based on visual evidence only>
 }`;
 
+// Add this temporarily to vision.service.js
+// BEFORE the generateContent call:
+console.log("API Key exists:", !!process.env.GEMINI_API_KEY);
+console.log("SDK version:", require('@google/generative-ai/package.json').version);
+
 async function runVisionAnalysis(imageBase64) {
   try {
     // Strip data URL prefix if present
@@ -42,20 +50,36 @@ async function runVisionAnalysis(imageBase64) {
       ? 'image/png'
       : 'image/jpeg';
 
-    const result = await model.generateContent([
-      VISION_PROMPT,
-      {
-        inlineData: {
-          data: base64Data,
-          mimeType: mimeType
-        }
+    let parsed = null;
+    let selectedModel = null;
+
+    for (const modelName of modelsToTry) {
+      try {
+        const model = genAI.getGenerativeModel({ model: modelName });
+        console.log('Calling model:', modelName);
+
+        const result = await model.generateContent([
+          VISION_PROMPT,
+          {
+            inlineData: {
+              data: base64Data,
+              mimeType: mimeType
+            }
+          }
+        ]);
+
+        const raw = result.response.text().trim();
+        parsed = JSON.parse(raw);
+        selectedModel = modelName;
+        break;
+      } catch (modelErr) {
+        console.warn(`Vision model failed (${modelName}):`, modelErr.message || modelErr);
       }
-    ]);
+    }
 
-    const raw = result.response.text().trim();
-
-    // Parse JSON response
-    const parsed = JSON.parse(raw);
+    if (!parsed) {
+      throw new Error(`All Gemini models failed: ${modelsToTry.join(', ')}`);
+    }
 
     // Convert to your existing issue format
     const issues = [];
@@ -84,7 +108,7 @@ async function runVisionAnalysis(imageBase64) {
       issues,
       authenticityScore: parsed.authenticityScore || 50,
       rawResponse: parsed,
-      source: 'gemini-1.5-flash'
+      source: selectedModel || 'gemini'
     };
   } catch (err) {
     console.error('Vision analysis failed:', err.message || err);
