@@ -18,9 +18,9 @@ import { AiExplanation } from '../../models/medicine.model';
   imports: [CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="glass-card p-6 card-3d" style="animation: slideInUp 0.6s ease-out both; animation-delay: 0.4s;">
+    <section class="med-card ai-panel" style="animation: slideInUp 0.6s ease-out both; animation-delay: 0.4s;">
       <!-- Header -->
-      <div class="flex items-center gap-3 mb-5">
+      <div class="ai-header">
         <div class="ai-icon-wrapper">
           <svg class="ai-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M12 2a4 4 0 0 1 4 4v1a1 1 0 0 0 1 1h1a4 4 0 0 1 0 8h-1a1 1 0 0 0-1 1v1a4 4 0 0 1-8 0v-1a1 1 0 0 0-1-1H6a4 4 0 0 1 0-8h1a1 1 0 0 0 1-1V6a4 4 0 0 1 4-4z" />
@@ -28,12 +28,8 @@ import { AiExplanation } from '../../models/medicine.model';
           </svg>
         </div>
         <div>
-          <h3 class="text-lg font-bold" style="font-family: var(--font-display); color: var(--text-primary);">
-            AI Analysis Reasoning
-          </h3>
-          <p class="text-xs" style="color: var(--text-secondary);">
-            How our AI evaluated this medicine strip
-          </p>
+          <h3 class="ai-title">AI Analysis Reasoning</h3>
+          <p class="ai-subtitle">How our AI evaluated this medicine strip</p>
         </div>
       </div>
 
@@ -62,15 +58,22 @@ import { AiExplanation } from '../../models/medicine.model';
     </section>
   `,
   styles: [`
-    :host {
-      display: block;
+    :host { display: block; }
+
+    .ai-panel { padding: 1.75rem; }
+
+    .ai-header {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      margin-bottom: 1.25rem;
     }
 
     .ai-icon-wrapper {
       width: 44px;
       height: 44px;
-      border-radius: 12px;
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(168, 85, 247, 0.2));
+      border-radius: var(--radius-md);
+      background: linear-gradient(135deg, var(--accent-blue-50), #EDE9FE);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -83,26 +86,38 @@ import { AiExplanation } from '../../models/medicine.model';
       color: var(--accent-purple);
     }
 
+    .ai-title {
+      font-family: var(--font-display);
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .ai-subtitle {
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+    }
+
     .explanation-list {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 0.75rem;
     }
 
     .explanation-card {
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 12px;
-      padding: 16px;
+      background: #F8FAFC;
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      padding: 1rem 1.25rem;
       position: relative;
       overflow: hidden;
       animation: slideInUp 0.5s ease-out both;
-      transition: border-color 0.3s ease, background 0.3s ease, transform 0.3s ease;
+      transition: all 0.2s ease;
     }
 
     .explanation-card:hover {
-      border-color: rgba(168, 85, 247, 0.4);
-      background: rgba(168, 85, 247, 0.06);
+      border-color: rgba(124, 58, 237, 0.3);
+      background: #F5F3FF;
       transform: translateX(4px);
     }
 
@@ -114,8 +129,7 @@ import { AiExplanation } from '../../models/medicine.model';
     .explanation-header {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      margin-bottom: 8px;
+      margin-bottom: 0.5rem;
     }
 
     .area-badge {
@@ -123,8 +137,8 @@ import { AiExplanation } from '../../models/medicine.model';
       align-items: center;
       gap: 6px;
       padding: 3px 10px;
-      border-radius: 20px;
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(168, 85, 247, 0.15));
+      border-radius: 999px;
+      background: #EDE9FE;
       color: var(--accent-purple);
       font-size: 0.75rem;
       font-weight: 600;
@@ -139,9 +153,9 @@ import { AiExplanation } from '../../models/medicine.model';
     }
 
     .detail-text {
-      font-size: 0.8rem;
+      font-size: 0.82rem;
       color: var(--text-secondary);
-      line-height: 1.5;
+      line-height: 1.55;
     }
 
     .scan-line {
@@ -150,7 +164,7 @@ import { AiExplanation } from '../../models/medicine.model';
       left: -100%;
       width: 50%;
       height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(168, 85, 247, 0.08), transparent);
+      background: linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.06), transparent);
       opacity: 0;
       pointer-events: none;
     }

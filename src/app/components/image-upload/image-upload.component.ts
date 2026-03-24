@@ -28,7 +28,7 @@ const MAX_SPINNER_MS = 5_000;
     <section class="w-full">
       <!-- Upload Card -->
       <div
-        class="upload-card glass-card card-3d"
+        class="upload-card med-card"
         [class.drag-active]="isDragActive"
         (dragover)="onDragOver($event)"
         (dragleave)="onDragLeave($event)"
@@ -47,11 +47,13 @@ const MAX_SPINNER_MS = 5_000;
         <div class="upload-content">
           <!-- Upload Icon -->
           <div class="upload-icon-wrapper">
-            <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="17 8 12 3 7 8" />
-              <line x1="12" y1="3" x2="12" y2="15" />
-            </svg>
+            <div class="upload-icon-bg">
+              <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+            </div>
             <div class="upload-icon-ring"></div>
             <div class="upload-icon-ring ring-2"></div>
           </div>
@@ -83,13 +85,24 @@ const MAX_SPINNER_MS = 5_000;
               (click)="reset()"
               [disabled]="isLoading"
             >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="1 4 1 10 7 10"/>
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+              </svg>
               Reset
             </button>
           </div>
 
           <!-- Preview -->
           <div *ngIf="previewSrcList.length > 0" class="preview-container">
-            <div class="preview-label">Selected photos: {{ previewSrcList.length }}</div>
+            <div class="preview-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+              Selected photos: {{ previewSrcList.length }}
+            </div>
             <div class="preview-grid">
               <img
                 *ngFor="let src of previewSrcList; let index = index"
@@ -104,7 +117,7 @@ const MAX_SPINNER_MS = 5_000;
       </div>
 
       <!-- AI Analyzing Animation -->
-      <div *ngIf="isLoading" class="loading-card glass-card" style="animation: slideInUp 0.4s ease-out both;">
+      <div *ngIf="isLoading" class="loading-card med-card" style="animation: fadeInScale 0.4s ease-out both;">
         <div class="loading-content">
           <div class="ai-scanner">
             <div class="scanner-ring ring-outer"></div>
@@ -119,7 +132,7 @@ const MAX_SPINNER_MS = 5_000;
           </div>
           <div class="loading-text">
             <h4>AI is analyzing your image…</h4>
-            <p>Running LLaVA model • Checking authenticity markers</p>
+            <p>Running vision model • Checking authenticity markers • Cross-referencing FDA</p>
             <div class="loading-bar">
               <div class="loading-bar-fill"></div>
             </div>
@@ -130,14 +143,16 @@ const MAX_SPINNER_MS = 5_000;
       <!-- Error -->
       <div
         *ngIf="errorMessage"
-        class="error-card glass-card"
+        class="error-card"
         role="alert"
-        style="animation: slideInUp 0.4s ease-out both;"
+        style="animation: fadeInScale 0.3s ease-out both;"
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <path d="M12 8v4M12 16h.01"/>
-        </svg>
+        <div class="error-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 8v4M12 16h.01"/>
+          </svg>
+        </div>
         <span>{{ errorMessage }}</span>
       </div>
     </section>
@@ -145,13 +160,19 @@ const MAX_SPINNER_MS = 5_000;
   styles: [`
     :host { display: block; }
 
+    /* ─── Upload Card ─── */
     .upload-card {
-      padding: 2rem;
-      transition: border-color 0.3s ease, transform 0.3s ease;
+      padding: 2.5rem 2rem;
+      border: 2px dashed var(--border-light);
+      background: var(--bg-card);
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
     }
+
     .upload-card.drag-active {
       border-color: var(--accent-blue) !important;
-      box-shadow: 0 0 30px rgba(99, 102, 241, 0.3);
+      border-style: dashed;
+      background: var(--accent-blue-50);
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
     }
 
     .upload-content {
@@ -162,35 +183,45 @@ const MAX_SPINNER_MS = 5_000;
       text-align: center;
     }
 
+    /* Upload Icon */
     .upload-icon-wrapper {
       position: relative;
-      width: 72px;
-      height: 72px;
+      width: 80px;
+      height: 80px;
       display: flex;
       align-items: center;
       justify-content: center;
     }
-    .upload-icon {
-      width: 32px;
-      height: 32px;
-      color: var(--accent-blue);
+
+    .upload-icon-bg {
+      width: 64px;
+      height: 64px;
+      border-radius: var(--radius-lg);
+      background: var(--accent-blue-50);
+      display: flex;
+      align-items: center;
+      justify-content: center;
       z-index: 2;
       position: relative;
     }
+
+    .upload-icon {
+      width: 28px;
+      height: 28px;
+      color: var(--accent-blue);
+    }
+
     .upload-icon-ring {
       position: absolute;
       width: 100%;
       height: 100%;
       border-radius: 50%;
-      border: 2px solid rgba(99, 102, 241, 0.2);
+      border: 2px solid rgba(37, 99, 235, 0.15);
       animation: pulse-ring 2.5s ease-out infinite;
     }
+
     .upload-icon-ring.ring-2 {
       animation-delay: 1.25s;
-    }
-    @keyframes pulse-ring {
-      0%   { transform: scale(0.8); opacity: 0.8; }
-      100% { transform: scale(1.6); opacity: 0; }
     }
 
     .upload-title {
@@ -199,12 +230,14 @@ const MAX_SPINNER_MS = 5_000;
       font-weight: 700;
       color: var(--text-primary);
     }
+
     .upload-subtitle {
       font-size: 0.875rem;
       color: var(--text-secondary);
       margin-top: 0.25rem;
     }
 
+    /* Action Buttons */
     .upload-actions {
       display: flex;
       gap: 0.75rem;
@@ -216,49 +249,58 @@ const MAX_SPINNER_MS = 5_000;
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 0.75rem 1.5rem;
-      border-radius: 12px;
+      padding: 0.7rem 1.5rem;
+      border-radius: var(--radius-md);
       border: none;
-      background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+      background: var(--accent-blue);
       color: white;
       font-weight: 600;
       font-size: 0.875rem;
       font-family: var(--font-body);
       cursor: pointer;
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
-      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
     }
+
     .btn-primary:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 25px rgba(99, 102, 241, 0.5);
+      background: #1D4ED8;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
     }
+
     .btn-primary:disabled {
       opacity: 0.5;
       cursor: not-allowed;
     }
 
     .btn-secondary {
-      padding: 0.75rem 1.5rem;
-      border-radius: 12px;
-      border: 1px solid var(--glass-border);
-      background: rgba(255, 255, 255, 0.05);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0.7rem 1.5rem;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-light);
+      background: var(--bg-card);
       color: var(--text-secondary);
       font-weight: 600;
       font-size: 0.875rem;
       font-family: var(--font-body);
       cursor: pointer;
-      transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+      transition: all 0.2s ease;
     }
+
     .btn-secondary:hover:not(:disabled) {
       border-color: var(--accent-blue);
-      color: var(--text-primary);
-      background: rgba(99, 102, 241, 0.1);
+      color: var(--accent-blue);
+      background: var(--accent-blue-50);
     }
+
     .btn-secondary:disabled {
       opacity: 0.5;
       cursor: not-allowed;
     }
 
+    /* Image Preview */
     .preview-container {
       width: 100%;
       max-width: 560px;
@@ -266,32 +308,39 @@ const MAX_SPINNER_MS = 5_000;
       flex-direction: column;
       gap: 0.5rem;
     }
+
     .preview-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
       color: var(--text-secondary);
-      font-size: 0.8rem;
-      text-align: left;
-      width: 100%;
+      font-size: 0.82rem;
+      font-weight: 500;
     }
+
     .preview-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 0.5rem;
+      gap: 0.75rem;
       width: 100%;
     }
+
     .preview-image {
       width: 100%;
-      aspect-ratio: 4 / 3;
+      aspect-ratio: 4/3;
       object-fit: cover;
-      border-radius: 12px;
-      border: 1px solid var(--glass-border);
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-light);
+      box-shadow: var(--shadow-sm);
     }
 
     /* ─── Loading Card ─── */
     .loading-card {
       margin-top: 1rem;
       padding: 1.5rem;
+      border-left: 4px solid var(--accent-blue);
     }
+
     .loading-content {
       display: flex;
       align-items: center;
@@ -300,25 +349,28 @@ const MAX_SPINNER_MS = 5_000;
 
     .ai-scanner {
       position: relative;
-      width: 64px;
-      height: 64px;
+      width: 56px;
+      height: 56px;
       flex-shrink: 0;
       display: flex;
       align-items: center;
       justify-content: center;
     }
+
     .scanner-ring {
       position: absolute;
       border-radius: 50%;
       border: 2px solid transparent;
     }
+
     .ring-outer {
       width: 100%;
       height: 100%;
       border-top-color: var(--accent-blue);
-      border-right-color: var(--accent-purple);
+      border-right-color: var(--accent-green);
       animation: spin 2s linear infinite;
     }
+
     .ring-middle {
       width: 80%;
       height: 80%;
@@ -326,21 +378,18 @@ const MAX_SPINNER_MS = 5_000;
       border-left-color: var(--accent-blue);
       animation: spin 1.5s linear infinite reverse;
     }
+
     .ring-inner {
       width: 60%;
       height: 60%;
-      border-top-color: var(--accent-purple);
+      border-top-color: var(--accent-green);
       animation: spin 1s linear infinite;
     }
+
     .scanner-core {
       z-index: 2;
-      color: var(--accent-purple);
+      color: var(--accent-blue);
       animation: pulse 1.5s ease-in-out infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.15); opacity: 0.7; }
     }
 
     .loading-text h4 {
@@ -349,30 +398,28 @@ const MAX_SPINNER_MS = 5_000;
       font-size: 1rem;
       color: var(--text-primary);
     }
+
     .loading-text p {
       font-size: 0.8rem;
       color: var(--text-secondary);
       margin-top: 0.25rem;
     }
+
     .loading-bar {
       margin-top: 0.75rem;
       width: 100%;
       height: 4px;
-      background: rgba(255, 255, 255, 0.1);
+      background: #E2E8F0;
       border-radius: 2px;
       overflow: hidden;
     }
+
     .loading-bar-fill {
       height: 100%;
       width: 40%;
-      background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple), var(--accent-cyan));
+      background: linear-gradient(90deg, var(--accent-blue), var(--accent-green), var(--accent-cyan));
       border-radius: 2px;
       animation: loadingSlide 2s ease-in-out infinite;
-    }
-    @keyframes loadingSlide {
-      0%   { transform: translateX(-100%); }
-      50%  { transform: translateX(200%); }
-      100% { transform: translateX(-100%); }
     }
 
     /* ─── Error Card ─── */
@@ -382,12 +429,20 @@ const MAX_SPINNER_MS = 5_000;
       display: flex;
       align-items: center;
       gap: 0.75rem;
-      border-color: rgba(248, 113, 113, 0.3) !important;
-      color: #fca5a5;
+      background: var(--accent-red-50);
+      border: 1px solid rgba(220, 38, 38, 0.2);
+      border-radius: var(--radius-md);
+      color: var(--accent-red);
       font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    .error-icon {
+      flex-shrink: 0;
     }
 
     @media (max-width: 640px) {
+      .upload-card { padding: 1.5rem 1rem; }
       .loading-content {
         flex-direction: column;
         text-align: center;

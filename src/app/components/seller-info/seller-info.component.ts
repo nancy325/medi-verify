@@ -19,7 +19,7 @@ import { SellerInfo } from '../../models/medicine.model';
   template: `
     <section
       *ngIf="seller"
-      class="glass-card seller-card card-3d"
+      class="med-card seller-card"
       style="animation: slideInUp 0.6s ease-out both; animation-delay: 0.3s;"
     >
       <!-- Header -->
@@ -52,7 +52,7 @@ import { SellerInfo } from '../../models/medicine.model';
 
       <!-- Stats Grid -->
       <div class="stats-grid">
-        <!-- Trust Score (shown first) -->
+        <!-- Trust Score -->
         <div class="stat-card" [class.trust-high]="isTrusted(seller)" [class.trust-low]="!isTrusted(seller)">
           <p class="stat-label">Trust Score</p>
           <div class="stat-value-row">
@@ -97,9 +97,7 @@ import { SellerInfo } from '../../models/medicine.model';
   styles: [`
     :host { display: block; }
 
-    .seller-card {
-      padding: 1.5rem;
-    }
+    .seller-card { padding: 1.5rem; }
 
     .seller-header {
       display: flex;
@@ -108,16 +106,18 @@ import { SellerInfo } from '../../models/medicine.model';
       gap: 1rem;
       flex-wrap: wrap;
     }
+
     .seller-identity {
       display: flex;
       align-items: center;
       gap: 0.75rem;
     }
+
     .seller-avatar {
       width: 44px;
       height: 44px;
-      border-radius: 12px;
-      background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+      border-radius: var(--radius-md);
+      background: linear-gradient(135deg, var(--accent-blue), #1D4ED8);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -125,13 +125,16 @@ import { SellerInfo } from '../../models/medicine.model';
       font-family: var(--font-display);
       font-weight: 800;
       font-size: 1.1rem;
+      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
     }
+
     .seller-name {
       font-family: var(--font-display);
       font-weight: 700;
       font-size: 1.1rem;
       color: var(--text-primary);
     }
+
     .seller-subtitle {
       font-size: 0.75rem;
       color: var(--text-secondary);
@@ -141,100 +144,84 @@ import { SellerInfo } from '../../models/medicine.model';
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      padding: 0.35rem 0.75rem;
-      border-radius: 20px;
+      padding: 0.35rem 0.85rem;
+      border-radius: 999px;
       font-size: 0.75rem;
       font-weight: 700;
       font-family: var(--font-display);
     }
+
     .verified-badge.verified {
-      background: rgba(52, 211, 153, 0.12);
+      background: var(--accent-green-50);
       color: var(--accent-green);
-      border: 1px solid rgba(52, 211, 153, 0.25);
-      box-shadow: 0 0 12px rgba(52, 211, 153, 0.15);
-    }
-    .verified-badge.unverified {
-      background: rgba(248, 113, 113, 0.12);
-      color: var(--accent-red);
-      border: 1px solid rgba(248, 113, 113, 0.25);
+      border: 1px solid rgba(22, 163, 74, 0.2);
     }
 
-    /* ─── Stats ─── */
+    .verified-badge.unverified {
+      background: var(--accent-red-50);
+      color: var(--accent-red);
+      border: 1px solid rgba(220, 38, 38, 0.2);
+    }
+
     .stats-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 0.75rem;
       margin-top: 1.25rem;
     }
+
     .stat-card {
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 12px;
+      background: #F8FAFC;
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
       padding: 1rem;
-      transition: border-color 0.3s ease, transform 0.2s ease;
+      transition: all 0.2s ease;
     }
+
     .stat-card:hover {
-      border-color: rgba(255, 255, 255, 0.15);
+      border-color: var(--border-medium);
       transform: translateY(-2px);
+      box-shadow: var(--shadow-sm);
     }
-    .stat-card.trust-high {
-      border-color: rgba(52, 211, 153, 0.2);
-    }
-    .stat-card.trust-low {
-      border-color: rgba(248, 113, 113, 0.2);
-    }
+
+    .stat-card.trust-high { border-color: rgba(22, 163, 74, 0.2); }
+    .stat-card.trust-low { border-color: rgba(220, 38, 38, 0.2); }
 
     .stat-label {
       font-size: 0.7rem;
       font-weight: 600;
-      color: var(--text-secondary);
+      color: var(--text-tertiary);
       text-transform: uppercase;
       letter-spacing: 0.05em;
       margin-bottom: 0.35rem;
     }
-    .stat-value-row {
-      display: flex;
-      align-items: baseline;
-      gap: 4px;
-    }
+
+    .stat-value-row { display: flex; align-items: baseline; gap: 4px; }
+
     .stat-value {
       font-family: var(--font-display);
       font-size: 1.35rem;
       font-weight: 800;
       color: var(--text-primary);
     }
-    .stat-suffix {
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: var(--text-secondary);
-    }
-    .stat-extra {
-      font-size: 0.7rem;
-      color: var(--text-secondary);
-      margin-top: 0.25rem;
-    }
 
-    /* Stars */
-    .stars {
-      display: flex;
-      gap: 2px;
-      margin-top: 0.35rem;
-    }
-    .star {
-      font-size: 0.85rem;
-    }
-    .star.filled { color: var(--accent-yellow); }
-    .star.empty { color: rgba(255, 255, 255, 0.15); }
+    .stat-suffix { font-size: 0.8rem; font-weight: 600; color: var(--text-tertiary); }
+    .stat-extra { font-size: 0.7rem; color: var(--text-tertiary); margin-top: 0.25rem; }
 
-    /* Trust bar */
+    .stars { display: flex; gap: 2px; margin-top: 0.35rem; }
+    .star { font-size: 0.85rem; }
+    .star.filled { color: #F59E0B; }
+    .star.empty { color: #E2E8F0; }
+
     .trust-bar {
       width: 100%;
       height: 4px;
-      background: rgba(255, 255, 255, 0.1);
+      background: #E2E8F0;
       border-radius: 2px;
       margin-top: 0.5rem;
       overflow: hidden;
     }
+
     .trust-bar-fill {
       height: 100%;
       border-radius: 2px;
@@ -242,13 +229,8 @@ import { SellerInfo } from '../../models/medicine.model';
     }
 
     @media (max-width: 640px) {
-      .stats-grid {
-        grid-template-columns: 1fr;
-      }
-      .seller-header {
-        flex-direction: column;
-        align-items: flex-start;
-      }
+      .stats-grid { grid-template-columns: 1fr; }
+      .seller-header { flex-direction: column; align-items: flex-start; }
     }
   `]
 })
@@ -286,9 +268,7 @@ export class SellerInfoComponent implements AfterViewInit, OnChanges {
   }
 
   private animateTrust(target: number): void {
-    if (this.animFrameId) {
-      cancelAnimationFrame(this.animFrameId);
-    }
+    if (this.animFrameId) { cancelAnimationFrame(this.animFrameId); }
     const duration = 1200;
     const startTime = performance.now();
 
@@ -296,13 +276,9 @@ export class SellerInfoComponent implements AfterViewInit, OnChanges {
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
-
       this.displayTrust = Math.round(eased * target);
       this.cdr.markForCheck();
-
-      if (progress < 1) {
-        this.animFrameId = requestAnimationFrame(animate);
-      }
+      if (progress < 1) { this.animFrameId = requestAnimationFrame(animate); }
     };
 
     this.animFrameId = requestAnimationFrame(animate);
